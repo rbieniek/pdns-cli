@@ -1,0 +1,22 @@
+version: "3"
+services:
+  db:
+   image: mariadb:10.1
+   environment:
+     - MYSQL_ROOT_PASSWORD=supersecret
+   volumes:
+      - ./target/stack-files/db:/var/lib/mysql
+  pdns:
+   image: psitrax/powerdns:v4.4.1 
+   environment:
+     - MYSQL_HOST=db
+     - MYSQL_USER=root
+     - MYSQL_PASS=supersecret
+     - MYSQL_PORT=3306
+   ports:
+     - 53:53
+     - 53:53/udp
+     - 8080:8080
+   volumes:
+      - ./target/stack-files/pdns:/extern
+      - ./stack-files/pdns:/etc/pdns/conf.d
