@@ -16,9 +16,11 @@ pub enum AppConfigErrorKind {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum UriPart {
     Scheme { scheme: String },
+    Username { user: String },
+    Password { password: String },
     Path { path: String },
     Query { query: String },
-    Anchor { anchor: String },
+    Fragment { fragment: String },
 }
 
 
@@ -75,10 +77,12 @@ impl AppConfigErrorKind {
 impl UriPart {
     fn __description(&self) -> String {
         match self {
-            UriPart::Scheme { scheme} => format!("Invalid URI scheme '{}'", scheme),
+            UriPart::Scheme { scheme } => format!("Invalid URI scheme '{}'", scheme),
+            UriPart::Username { user } => format!("Non-Empty URI user name '{}'", user),
+            UriPart::Password { password } => format!("Non-Empty URI password '{}'", password),
             UriPart::Path { path } => format!("Non-empty URI path '{}'", path),
-            UriPart::Query { query} => format!("Non-empty query '{}'", query),
-            UriPart::Anchor { anchor } => format!("Non-empty anchor '{}'", anchor),
+            UriPart::Query { query } => format!("Non-empty query '{}'", query),
+            UriPart::Fragment { fragment } => format!("Non-empty fragment '{}'", fragment),
         }
     }
 }
