@@ -1,17 +1,30 @@
 use std::convert::TryFrom;
 
 use clap::{App, Arg, ArgMatches};
+use fancy_regex::Regex;
 use log::LevelFilter;
 use uriparse::{Scheme, URI};
 
 use crate::app_config::errors::{AppConfigError, UriPart};
 
 const PARAM_BASE_URI: &'static str = "base-uri";
+const PARAM_ZONE_NAME: &'static str = "zone-name";
+const PARAM_IGNORE_EXISTING: &'static str = "ignore-existing";
 const PARAM_VERBOSITY: &'static str = "verbose";
 
 pub struct ApplicationConfiguration {
     base_uri: String,
     log_level: LevelFilter,
+}
+
+pub enum Command {
+    AddZone {
+        zone_name: String,
+        ignore_existing: bool,
+    },
+    RemoveZone {
+        zone_name: String,
+    },
 }
 
 impl ApplicationConfiguration {
@@ -44,8 +57,9 @@ impl ApplicationConfiguration {
 }
 
 pub fn parse_command_line() -> ArgMatches {
-    App::new("simple-cert-server")
+    App::new("pdns-cli")
         .version("1.0")
+        .about("Modify PowerDNS instance data")
         .author("Rainer Bieniek <Rainer.Bieniek@cumulus-cloud-consulting.de>")
         .arg(Arg::new(PARAM_BASE_URI)
             .about("PowerDNS ReST API base URI")
@@ -66,6 +80,16 @@ pub fn parse_command_line() -> ArgMatches {
                 .long("verbose")
                 .short('v')
                 .multiple_occurrences(true)
+        )
+        .subcommand(App::new("add-zone")
+            .about("Add zone to PowerDNS instance")
+            .arg(Arg::new(PARAM_ZONE_NAME)
+                .about("Zone name")
+                .long(PARAM_ZONE_NAME)
+                .short('n')
+                .takes_value(true)
+                .required(true)
+            )
         )
         .get_matches()
 }
@@ -108,5 +132,32 @@ fn verify_base_uri(base_uri: &URI) -> Result<(), AppConfigError> {
                                                      &UriPart::Scheme {
                                                          scheme: base_uri.scheme().to_string()
                                                      }))
+    }
+}
+
+fn verify_zone_name(value: &str) -> Result<(), AppConfigError> {
+    let re = Regex::new("^((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}$").unwrap();
+
+    match re.is_match(value) {
+        Ok(result) => match result {
+            true => Ok(()),
+            false => Err(AppConfigError::on_malformed_zone_name(&value.to_string(), &"".to_string())),
+        },
+        Err(error) => Err(AppConfigError::on_malformed_zone_name(&value.to_string(), &error.to_string())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::app_config::cmd_line_parser::verify_zone_name;
+
+    #[test]
+    fn should_validate_valid_zone_name() {
+        assert_eq!(verify_zone_name("ccsac.de"), Ok(()))
+    }
+
+    #[test]
+    fn should_validate_valid_rev_zone_name() {
+        assert_eq!(verify_zone_name("26.16.172.in-addr.arpa"), Ok(()))
     }
 }

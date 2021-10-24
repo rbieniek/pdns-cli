@@ -11,6 +11,7 @@ pub struct AppConfigError {
 pub enum AppConfigErrorKind {
     MalformedBaseUri { base_uri: String, parser_error: String },
     InvalidUriPart { base_uri: String, uri_part: UriPart },
+    MalformedZoneName { zone_name: String, reason: String },
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -39,6 +40,12 @@ impl AppConfigError {
         }
     }
 
+    pub fn on_malformed_zone_name(_zone_name: &String, _reason: &String) -> AppConfigError {
+        AppConfigError {
+            kind: AppConfigErrorKind::on_malformed_zone_name(_zone_name, _reason)
+        }
+    }
+
     fn __description(&self) -> String {
         match &self.kind {
             AppConfigErrorKind::MalformedBaseUri {
@@ -49,6 +56,10 @@ impl AppConfigError {
                 base_uri,
                 uri_part,
             } => format!("Base URI '{}' contains unexpected part: {}", base_uri, uri_part),
+            AppConfigErrorKind::MalformedZoneName {
+                zone_name,
+                reason,
+            } => format!("Malformed zone name {}: {}", zone_name, reason)
         }
     }
 }
@@ -66,10 +77,18 @@ impl AppConfigErrorKind {
             parser_error: _parser_error.clone(),
         }
     }
+
     fn on_invalid_uri_part(_base_uri: &String, _uri_part: &UriPart) -> AppConfigErrorKind {
         AppConfigErrorKind::InvalidUriPart {
             base_uri: _base_uri.clone(),
             uri_part: _uri_part.clone(),
+        }
+    }
+
+    fn on_malformed_zone_name(_zone_name: &String, _reason: &String) -> AppConfigErrorKind {
+        AppConfigErrorKind::MalformedZoneName {
+            zone_name: _zone_name.clone(),
+            reason: _reason.clone(),
         }
     }
 }
