@@ -11,18 +11,27 @@ const PARAM_BASE_URI: &'static str = "base-uri";
 const PARAM_ZONE_NAME: &'static str = "zone-name";
 const PARAM_IGNORE_EXISTING: &'static str = "ignore-existing";
 const PARAM_VERBOSITY: &'static str = "verbose";
+const SUBCOMMAND_ADD_ZONE: &'static str = "add-zone";
+const SUBCOMMAND_REMOVE_ZONE: &'static str = "remove-zone";
+const SUBCOMMAND_QUERY_ZONE: &'static str = "query-zone";
+
 
 pub struct ApplicationConfiguration {
     base_uri: String,
     log_level: LevelFilter,
+    command: Command,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Command {
     AddZone {
         zone_name: String,
         ignore_existing: bool,
     },
     RemoveZone {
+        zone_name: String,
+    },
+    QueryZone {
         zone_name: String,
     },
 }
@@ -39,16 +48,41 @@ impl ApplicationConfiguration {
             _ => log::LevelFilter::Trace,
         };
 
-        Ok(ApplicationConfiguration {
-            base_uri: matches.value_of(PARAM_BASE_URI).unwrap().to_string(),
-            log_level: level,
-        })
+        let command_add_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_ADD_ZONE) {
+            Some(Command::AddZone {
+                zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
+                ignore_existing: command.is_present(PARAM_IGNORE_EXISTING),
+            })
+        } else { None };
+        let command_query_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_QUERY_ZONE) {
+            Some(Command::QueryZone {
+                zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
+            })
+        } else { None };
+        let command_remove_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_REMOVE_ZONE) {
+            Some(Command::RemoveZone {
+                zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
+            })
+        } else { None };
+
+        match command_add_zone.or(command_query_zone).or(command_remove_zone) {
+            Some(command) => Ok(ApplicationConfiguration {
+                base_uri: matches.value_of(PARAM_BASE_URI).unwrap().to_string(),
+                log_level: level,
+                command
+            }),
+            None => Err(AppConfigError::on_missing_command())
+        }
     }
 
     /// Return the bind address specified on the command line (if any).
     /// If the bind address was omitted, provide the fallback value "127.0.0.1:8080"
     pub fn base_uri(&self) -> String {
         self.base_uri.clone()
+    }
+
+    pub fn command(&self) -> Command {
+        self.command.clone()
     }
 
     pub fn log_level(&self) -> LevelFilter {
@@ -77,11 +111,11 @@ pub fn parse_command_line() -> ArgMatches {
         .arg(
             Arg::new(PARAM_VERBOSITY)
                 .about("Change verbosity of output")
-                .long("verbose")
+                .long(PARAM_VERBOSITY)
                 .short('v')
                 .multiple_occurrences(true)
         )
-        .subcommand(App::new("add-zone")
+        .subcommand(App::new(SUBCOMMAND_ADD_ZONE)
             .about("Add zone to PowerDNS instance")
             .arg(Arg::new(PARAM_ZONE_NAME)
                 .about("Zone name")
@@ -89,8 +123,31 @@ pub fn parse_command_line() -> ArgMatches {
                 .short('n')
                 .takes_value(true)
                 .required(true)
-            )
-        )
+                .validator(|value| verify_zone_name(value)))
+            .arg(Arg::new(PARAM_IGNORE_EXISTING)
+                .about("Ignore existing zone")
+                .long(PARAM_IGNORE_EXISTING)
+                .short('e')
+                .required(false)
+                .takes_value(false)))
+        .subcommand(App::new(SUBCOMMAND_QUERY_ZONE)
+            .about("Add zone to PowerDNS instance")
+            .arg(Arg::new(PARAM_ZONE_NAME)
+                .about("Zone name")
+                .long(PARAM_ZONE_NAME)
+                .short('n')
+                .takes_value(true)
+                .required(true)
+                .validator(|value| verify_zone_name(value))))
+        .subcommand(App::new(SUBCOMMAND_REMOVE_ZONE)
+            .about("Add zone to PowerDNS instance")
+            .arg(Arg::new(PARAM_ZONE_NAME)
+                .about("Zone name")
+                .long(PARAM_ZONE_NAME)
+                .short('n')
+                .takes_value(true)
+                .required(true)
+                .validator(|value| verify_zone_name(value))))
         .get_matches()
 }
 
@@ -149,7 +206,117 @@ fn verify_zone_name(value: &str) -> Result<(), AppConfigError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::app_config::cmd_line_parser::verify_zone_name;
+    use crate::app_config::cmd_line_parser::{verify_zone_name, verify_base_uri};
+    use uriparse::URI;
+    use std::convert::TryFrom;
+    use crate::app_config::errors::{AppConfigErrorKind, UriPart};
+
+    #[test]
+    fn should_verify_valid_base_uri_with_http() {
+        let uri = URI::try_from("http://localhost:8080/").unwrap();
+        let result = verify_base_uri(&uri);
+
+        assert_eq!(result.is_ok(), true);
+    }
+
+    #[test]
+    fn should_verify_valid_base_uri_with_https() {
+        let uri = URI::try_from("https://localhost:8080/").unwrap();
+        let result = verify_base_uri(&uri);
+
+        assert_eq!(result.is_ok(), true);
+    }
+
+    #[test]
+    fn should_fail_base_uri_with_bad_scheme() {
+        let uri_str = "ftp://localhost:8080/";
+        let uri = URI::try_from(uri_str).unwrap();
+        let result = verify_base_uri(&uri);
+
+        assert_eq!(result.is_err(), true);
+
+        let app_error = result.unwrap_err();
+
+        assert_eq!(app_error.kind, AppConfigErrorKind::InvalidUriPart {
+            base_uri: uri_str.to_string(),
+            uri_part: UriPart::Scheme {
+                scheme: "ftp".to_string()
+            }
+        })
+    }
+
+    #[test]
+    fn should_fail_base_uri_with_username() {
+        let uri_str = "http://foo@localhost:8080/";
+        let uri = URI::try_from(uri_str).unwrap();
+        let result = verify_base_uri(&uri);
+
+        assert_eq!(result.is_err(), true);
+
+        let app_error = result.unwrap_err();
+
+        assert_eq!(app_error.kind, AppConfigErrorKind::InvalidUriPart {
+            base_uri: uri_str.to_string(),
+            uri_part: UriPart::Username {
+                user: "foo".to_string()
+            }
+        })
+    }
+
+    #[test]
+    fn should_fail_base_uri_withpath() {
+        let uri_str = "http://localhost:8080/info";
+        let uri = URI::try_from(uri_str).unwrap();
+        let result = verify_base_uri(&uri);
+
+        assert_eq!(result.is_err(), true);
+
+        let app_error = result.unwrap_err();
+
+        assert_eq!(app_error.kind, AppConfigErrorKind::InvalidUriPart {
+            base_uri: uri_str.to_string(),
+            uri_part: UriPart::Path {
+                path: "/info".to_string()
+            }
+        })
+    }
+
+    #[test]
+    fn should_fail_base_uri_with_query() {
+        let uri_str = "http://localhost:8080/?foo=bar";
+        let uri = URI::try_from(uri_str).unwrap();
+        let result = verify_base_uri(&uri);
+
+        assert_eq!(result.is_err(), true);
+
+        let app_error = result.unwrap_err();
+
+        assert_eq!(app_error.kind, AppConfigErrorKind::InvalidUriPart {
+            base_uri: uri_str.to_string(),
+            uri_part: UriPart::Query {
+                query: "foo=bar".to_string()
+            }
+        })
+    }
+
+    #[test]
+    fn should_fail_base_uri_with_fragment() {
+        let uri_str = "http://localhost:8080/#info";
+        let uri = URI::try_from(uri_str).unwrap();
+        let result = verify_base_uri(&uri);
+
+        assert_eq!(result.is_err(), true);
+
+        let app_error = result.unwrap_err();
+
+        assert_eq!(app_error.kind, AppConfigErrorKind::InvalidUriPart {
+            base_uri: uri_str.to_string(),
+            uri_part: UriPart::Fragment {
+                fragment: "info".to_string()
+            }
+        })
+    }
+
 
     #[test]
     fn should_validate_valid_zone_name() {
@@ -159,5 +326,10 @@ mod tests {
     #[test]
     fn should_validate_valid_rev_zone_name() {
         assert_eq!(verify_zone_name("26.16.172.in-addr.arpa"), Ok(()))
+    }
+
+    #[test]
+    fn should_fail_invalid_zone_name() {
+        assert_eq!(verify_zone_name("ccsac").is_err(), true)
     }
 }

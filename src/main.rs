@@ -3,7 +3,7 @@ use log4rs::Config;
 use log4rs::config::{Appender, Root};
 use log4rs::filter::threshold::ThresholdFilter;
 use log::{LevelFilter, info};
-use crate::app_config::cmd_line_parser::ApplicationConfiguration;
+use crate::app_config::cmd_line_parser::{ApplicationConfiguration, Command};
 
 mod app_config;
 
@@ -13,7 +13,19 @@ async fn main() {
         Ok(app_config) => {
             setup_logger(&app_config);
 
-            info!("Using base URI {}", app_config.base_uri().clone())
+            info!("Using base URI {}", app_config.base_uri().clone());
+
+            match app_config.command() {
+                Command::AddZone { zone_name, ignore_existing} => {
+                    info!("Executing command add-zone, zone {}, ignore existing {}", &zone_name, ignore_existing)
+                },
+                Command::RemoveZone { zone_name} => {
+                    info!("Executing command remove-zone, zone {}", &zone_name)
+                },
+                Command::QueryZone { zone_name} => {
+                    info!("Executing command query-zone, zone {}", &zone_name)
+                },
+            }
         }
         Err(err) => panic!("Error parsing command line: {}", err)
     }

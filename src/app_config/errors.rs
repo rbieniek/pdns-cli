@@ -12,6 +12,7 @@ pub enum AppConfigErrorKind {
     MalformedBaseUri { base_uri: String, parser_error: String },
     InvalidUriPart { base_uri: String, uri_part: UriPart },
     MalformedZoneName { zone_name: String, reason: String },
+    MissingCommand,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -46,6 +47,12 @@ impl AppConfigError {
         }
     }
 
+    pub fn on_missing_command() -> AppConfigError {
+        AppConfigError {
+            kind: AppConfigErrorKind::MissingCommand
+        }
+    }
+
     fn __description(&self) -> String {
         match &self.kind {
             AppConfigErrorKind::MalformedBaseUri {
@@ -59,7 +66,8 @@ impl AppConfigError {
             AppConfigErrorKind::MalformedZoneName {
                 zone_name,
                 reason,
-            } => format!("Malformed zone name {}: {}", zone_name, reason)
+            } => format!("Malformed zone name {}: {}", zone_name, reason),
+            AppConfigErrorKind::MissingCommand => format!("Command missing"),
         }
     }
 }
