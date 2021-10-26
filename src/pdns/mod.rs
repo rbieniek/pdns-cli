@@ -1,2 +1,2 @@
-mod server;
-mod struct_type;
+pub mod server;
+pub mod struct_type;
