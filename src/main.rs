@@ -5,6 +5,8 @@ use log4rs::config::{Appender, Root};
 use log4rs::filter::threshold::ThresholdFilter;
 
 use crate::app_config::cmd_line_parser::{ApplicationConfiguration, Command};
+use crate::rest_client::lifecycle::Disposeable;
+use crate::rest_client::server_resource_client::ServerResourceClient;
 
 mod app_config;
 mod rest_client;
@@ -18,6 +20,11 @@ async fn main() {
 
             info!("Using base URI {}", app_config.base_uri().clone());
 
+            let mut disposeables: Vec<&dyn Disposeable> = Vec::new();
+            let mut server_resource_client = ServerResourceClient::new();
+
+            disposeables.push(&server_resource_client);
+
             match app_config.command() {
                 Command::AddZone {
                     zone_name,
@@ -25,16 +32,24 @@ async fn main() {
                 } => execute_add_zone(Command::AddZone {
                     zone_name,
                     ignore_existing,
-                }),
+                },
+                                      &server_resource_client,
+                                      &mut disposeables),
                 Command::RemoveZone { zone_name } => execute_remove_zone(Command::RemoveZone { zone_name }),
                 Command::QueryZone { zone_name } => execute_query_zone(Command::QueryZone { zone_name }),
+            }
+
+            for disposeable in disposeables.iter() {
+                disposeable.shutdown();
             }
         }
         Err(err) => panic!("Error parsing command line: {}", err)
     }
 }
 
-fn execute_add_zone(command: Command) {
+fn execute_add_zone(command: Command,
+                    server_resource_client: &ServerResourceClient,
+                    disposeables: &mut Vec<&dyn Disposeable>) {
     if let Command::AddZone { zone_name, ignore_existing} = command {
         info!("Executing command add-zone, zone {}, ignore existing {}", &zone_name, ignore_existing)
     }
