@@ -1,11 +1,10 @@
+use log::info;
+use tokio::sync::oneshot::{channel, Receiver, Sender};
+use tokio::task::JoinHandle;
+
 use crate::pdns::server::Server;
 use crate::rest_client::errors::RestClientError;
-use tokio::sync::mpsc::{Receiver, Sender};
 use crate::rest_client::lifecycle::Disposeable;
-use tokio::task::JoinHandle;
-use tokio::sync::mpsc;
-use std::env::join_paths;
-use log::info;
 
 pub struct GetServerRequestEvent {
     base_uri: String,
@@ -13,7 +12,7 @@ pub struct GetServerRequestEvent {
 }
 
 pub struct GetServerResponseEvent {
-    result: Result<Server, RestClientError>
+    result: Result<Server, RestClientError>,
 }
 
 pub struct ServerResourceClient {
@@ -38,7 +37,7 @@ impl ServerResourceClient {
     }
 
     pub fn create_channel(&mut self) -> Sender<GetServerRequestEvent> {
-        let (event_tx, event_rx) = mpsc::channel::<GetServerRequestEvent>(32);
+        let (event_tx, event_rx) = channel::<GetServerRequestEvent>();
 
         self.join_handles.push(tokio::spawn(handle_request_event(event_rx)));
 
@@ -55,9 +54,10 @@ impl Disposeable for ServerResourceClient {
 }
 
 async fn handle_request_event(mut event_rx: Receiver<GetServerRequestEvent>) {
-    while let Some(message) = event_rx.recv().await {
-        info!("Received GetServerRequestEvent(baseUri={})", &message.base_uri);
-
-
+    match event_rx.await {
+        Ok(message) => {
+            info!("Received GetServerRequestEvent(baseUri={})", &message.base_uri);
+        }
+        Err(error) => info!("Expected message, didn't get one, error {}", error.to_string())
     }
 }

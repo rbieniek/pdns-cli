@@ -3,7 +3,7 @@ use log4rs::append::console::{ConsoleAppender, Target};
 use log4rs::Config;
 use log4rs::config::{Appender, Root};
 use log4rs::filter::threshold::ThresholdFilter;
-use tokio::sync::mpsc;
+use tokio::sync::oneshot::channel;
 
 use crate::app_config::cmd_line_parser::{ApplicationConfiguration, Command};
 use crate::rest_client::errors::RestClientError;
@@ -53,22 +53,19 @@ async fn execute_add_zone(command: Command,
     if let Command::AddZone { zone_name, ignore_existing } = command {
         info!("Executing command add-zone, zone {}, ignore existing {}", &zone_name, ignore_existing);
 
-        let (response_event_tx, mut response_event_rx) = mpsc::channel::<GetServerResponseEvent>(32);
+        let (response_event_tx, response_event_rx) = channel::<GetServerResponseEvent>();
         let request_event_tx = server_resource_client.create_channel();
 
-        match request_event_tx.send(GetServerRequestEvent::new(base_uri.clone(), response_event_tx)).await {
-            Ok(()) => {
-                 while let Some(response) = response_event_rx.recv().await {
-                    info!("Received GetServerResponseEvent event");
+        match request_event_tx.send(GetServerRequestEvent::new(base_uri.clone(), response_event_tx)) {
+            Ok(()) => match response_event_rx.await {
+                    Ok(response) => {
+                        info!("Received GetServerResponseEvent event");
 
-                    return Ok(())
-                }
-
-                info!("Left receive loop");
-
-                Err(RestClientError::on_unspecified_error())
-            },
-            Err(error) => Err(RestClientError::on_tokio_runtime_error(error.to_string())),
+                        Ok(())
+                    }
+                    Err(error) => Err(RestClientError::on_tokio_runtime_error(error.to_string())),
+                },
+            Err(_) => Err(RestClientError::on_unspecified_error()),
         }
     } else {
         Err(RestClientError::on_unspecified_error())
