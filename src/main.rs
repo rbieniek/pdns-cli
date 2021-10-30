@@ -7,7 +7,6 @@ use tokio::sync::oneshot::channel;
 
 use crate::app_config::cmd_line_parser::{ApplicationConfiguration, Command};
 use crate::rest_client::errors::RestClientError;
-use crate::rest_client::lifecycle::Disposeable;
 use crate::rest_client::server_resource_client::{GetServerRequestEvent, GetServerResponseEvent, ServerResourceClient};
 
 mod app_config;

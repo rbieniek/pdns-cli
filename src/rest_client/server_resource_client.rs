@@ -1,4 +1,4 @@
-use log::info;
+use log::{info, warn};
 use tokio::sync::oneshot::{channel, Receiver, Sender};
 use tokio::task::JoinHandle;
 
@@ -57,6 +57,10 @@ async fn handle_request_event(mut event_rx: Receiver<GetServerRequestEvent>) {
     match event_rx.await {
         Ok(message) => {
             info!("Received GetServerRequestEvent(baseUri={})", &message.base_uri);
+
+            if let Err(_) = message.response_channel.send(GetServerResponseEvent { result: Err(RestClientError::on_unspecified_error()) }) {
+                warn!("Cannot send response");
+            }
         }
         Err(error) => info!("Expected message, didn't get one, error {}", error.to_string())
     }
