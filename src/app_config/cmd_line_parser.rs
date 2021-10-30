@@ -8,6 +8,7 @@ use uriparse::{Scheme, URI};
 use crate::app_config::errors::{AppConfigError, UriPart};
 
 const PARAM_BASE_URI: &'static str = "base-uri";
+const PARAM_API_KEY: &'static str = "api-key";
 const PARAM_ZONE_NAME: &'static str = "zone-name";
 const PARAM_IGNORE_EXISTING: &'static str = "ignore-existing";
 const PARAM_VERBOSITY: &'static str = "verbose";
@@ -18,6 +19,7 @@ const SUBCOMMAND_QUERY_ZONE: &'static str = "query-zone";
 
 pub struct ApplicationConfiguration {
     base_uri: String,
+    api_key: String,
     log_level: LevelFilter,
     command: Command,
 }
@@ -68,6 +70,7 @@ impl ApplicationConfiguration {
         match command_add_zone.or(command_query_zone).or(command_remove_zone) {
             Some(command) => Ok(ApplicationConfiguration {
                 base_uri: matches.value_of(PARAM_BASE_URI).unwrap().to_string(),
+                api_key:  matches.value_of(PARAM_API_KEY).unwrap().to_string(),
                 log_level: level,
                 command
             }),
@@ -79,6 +82,10 @@ impl ApplicationConfiguration {
     /// If the bind address was omitted, provide the fallback value "127.0.0.1:8080"
     pub fn base_uri(&self) -> String {
         self.base_uri.clone()
+    }
+
+    pub fn api_key(&self) -> String {
+        self.api_key.clone()
     }
 
     pub fn command(&self) -> Command {
@@ -107,6 +114,13 @@ pub fn parse_command_line() -> ArgMatches {
                     Err(parser_error) => Err(AppConfigError::on_malformed_base_uri(&value.to_string(), &parser_error))
                 }
             })
+        )
+        .arg(Arg::new(PARAM_API_KEY)
+            .about("PowerDNS ReST API key")
+            .long(PARAM_BASE_URI)
+            .short('k')
+            .takes_value(true)
+            .required(true)
         )
         .arg(
             Arg::new(PARAM_VERBOSITY)

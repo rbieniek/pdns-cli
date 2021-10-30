@@ -1,4 +1,7 @@
-use serde::{Serialize, Deserialize};
+use std::fmt::{Display, Formatter};
+
+use serde::{Deserialize, Serialize};
+
 use crate::pdns::struct_type::StructType;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -51,9 +54,31 @@ impl Server {
     }
 }
 
+impl Display for Server {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "type={}, id={} daemon_type={} version={} url={} confiig_url={} zones_url={}",
+               self.type_id,
+               &self.id,
+               self.daemon_type,
+               &self.version,
+               &self.url,
+               &self.config_url,
+               &self.zones_url)
+    }
+}
+
+impl Display for DaemonType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DaemonType::Authoritative => write!(f, "AUTHORATIVE"),
+            DaemonType::Recursor => write!(f, "RECURSOR")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::pdns::server::{Server, DaemonType};
+    use crate::pdns::server::{DaemonType, Server};
     use crate::pdns::struct_type::StructType;
 
     #[test]

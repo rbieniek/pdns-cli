@@ -32,6 +32,7 @@ async fn main() {
                     ignore_existing,
                 },
                                       app_config.base_uri().clone(),
+                                      app_config.api_key().clone(),
                                       &mut server_resource_client).await,
                 Command::RemoveZone { zone_name } => execute_remove_zone(Command::RemoveZone { zone_name }).await,
                 Command::QueryZone { zone_name } => execute_query_zone(Command::QueryZone { zone_name }).await,
@@ -48,6 +49,7 @@ async fn main() {
 
 async fn execute_add_zone(command: Command,
                           base_uri: String,
+                          api_key: String,
                           server_resource_client: &mut ServerResourceClient) -> Result<(), RestClientError> {
     if let Command::AddZone { zone_name, ignore_existing } = command {
         info!("Executing command add-zone, zone {}, ignore existing {}", &zone_name, ignore_existing);
@@ -55,15 +57,17 @@ async fn execute_add_zone(command: Command,
         let (response_event_tx, response_event_rx) = channel::<GetServerResponseEvent>();
         let request_event_tx = server_resource_client.create_channel();
 
-        match request_event_tx.send(GetServerRequestEvent::new(base_uri.clone(), response_event_tx)) {
+        match request_event_tx.send(GetServerRequestEvent::new(base_uri.clone(),
+                                                               api_key.clone(),
+                                                               response_event_tx)) {
             Ok(()) => match response_event_rx.await {
-                    Ok(response) => {
-                        info!("Received GetServerResponseEvent event");
+                Ok(response) => {
+                    info!("Received GetServerResponseEvent event");
 
-                        Ok(())
-                    }
-                    Err(error) => Err(RestClientError::on_tokio_runtime_error(error.to_string())),
+                    Ok(())
                 },
+                Err(error) => Err(RestClientError::on_tokio_runtime_error(error.to_string())),
+            },
             Err(_) => Err(RestClientError::on_unspecified_error()),
         }
     } else {
