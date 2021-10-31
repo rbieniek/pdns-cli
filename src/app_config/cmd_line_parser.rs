@@ -24,8 +24,14 @@ pub struct ApplicationConfiguration {
     command: Command,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Command {
+#[derive(Hash, Debug, PartialEq, Eq, Clone)]
+pub struct Command {
+    kind: CommandKind,
+    parameters: CommandParameters,
+}
+
+#[derive(Hash, Debug, PartialEq, Eq, Clone)]
+pub enum CommandParameters {
     AddZone {
         zone_name: String,
         ignore_existing: bool,
@@ -36,6 +42,13 @@ pub enum Command {
     QueryZone {
         zone_name: String,
     },
+}
+
+#[derive(Hash, Debug, PartialEq, Eq, Clone)]
+pub enum CommandKind {
+    AddZone,
+    RemoveZone,
+    QueryZone,
 }
 
 impl ApplicationConfiguration {
@@ -51,28 +64,37 @@ impl ApplicationConfiguration {
         };
 
         let command_add_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_ADD_ZONE) {
-            Some(Command::AddZone {
-                zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
-                ignore_existing: command.is_present(PARAM_IGNORE_EXISTING),
+            Some(Command {
+                kind: CommandKind::AddZone,
+                parameters: CommandParameters::AddZone {
+                    zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
+                    ignore_existing: command.is_present(PARAM_IGNORE_EXISTING),
+                },
             })
         } else { None };
         let command_query_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_QUERY_ZONE) {
-            Some(Command::QueryZone {
-                zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
+            Some(Command {
+                kind: CommandKind::QueryZone,
+                parameters: CommandParameters::QueryZone {
+                    zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
+                },
             })
         } else { None };
         let command_remove_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_REMOVE_ZONE) {
-            Some(Command::RemoveZone {
-                zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
+            Some(Command {
+                kind: CommandKind::RemoveZone,
+                parameters: CommandParameters::RemoveZone {
+                    zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
+                },
             })
         } else { None };
 
         match command_add_zone.or(command_query_zone).or(command_remove_zone) {
             Some(command) => Ok(ApplicationConfiguration {
                 base_uri: matches.value_of(PARAM_BASE_URI).unwrap().to_string(),
-                api_key:  matches.value_of(PARAM_API_KEY).unwrap().to_string(),
+                api_key: matches.value_of(PARAM_API_KEY).unwrap().to_string(),
                 log_level: level,
-                command
+                command,
             }),
             None => Err(AppConfigError::on_missing_command())
         }
@@ -94,6 +116,16 @@ impl ApplicationConfiguration {
 
     pub fn log_level(&self) -> LevelFilter {
         self.log_level
+    }
+}
+
+impl Command {
+    pub fn kind(&self) -> CommandKind {
+        self.kind.clone()
+    }
+
+    pub fn parameters(&self) -> CommandParameters {
+        self.parameters.clone()
     }
 }
 
@@ -220,9 +252,11 @@ fn verify_zone_name(value: &str) -> Result<(), AppConfigError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::app_config::cmd_line_parser::{verify_zone_name, verify_base_uri};
-    use uriparse::URI;
     use std::convert::TryFrom;
+
+    use uriparse::URI;
+
+    use crate::app_config::cmd_line_parser::{verify_base_uri, verify_zone_name};
     use crate::app_config::errors::{AppConfigErrorKind, UriPart};
 
     #[test]
@@ -255,7 +289,7 @@ mod tests {
             base_uri: uri_str.to_string(),
             uri_part: UriPart::Scheme {
                 scheme: "ftp".to_string()
-            }
+            },
         })
     }
 
@@ -273,7 +307,7 @@ mod tests {
             base_uri: uri_str.to_string(),
             uri_part: UriPart::Username {
                 user: "foo".to_string()
-            }
+            },
         })
     }
 
@@ -291,7 +325,7 @@ mod tests {
             base_uri: uri_str.to_string(),
             uri_part: UriPart::Path {
                 path: "/info".to_string()
-            }
+            },
         })
     }
 
@@ -309,7 +343,7 @@ mod tests {
             base_uri: uri_str.to_string(),
             uri_part: UriPart::Query {
                 query: "foo=bar".to_string()
-            }
+            },
         })
     }
 
@@ -327,7 +361,7 @@ mod tests {
             base_uri: uri_str.to_string(),
             uri_part: UriPart::Fragment {
                 fragment: "info".to_string()
-            }
+            },
         })
     }
 

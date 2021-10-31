@@ -1,6 +1,6 @@
 use log::{info, warn};
 use reqwest::{Client, StatusCode};
-use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderMap, HeaderValue, HeaderName};
+use reqwest::header::{ACCEPT, HeaderMap, HeaderValue, HeaderName};
 use tokio::sync::oneshot::{channel, Receiver, Sender};
 use tokio::task::JoinHandle;
 
