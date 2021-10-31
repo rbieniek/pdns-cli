@@ -1,16 +1,13 @@
-use std::error::Error;
 use std::fmt;
-use std::fmt::Formatter;
-use std::sync::mpsc::SendError;
 
 use reqwest::StatusCode;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RestClientError {
     pub(super) kind: RestClientErrorKind,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RestClientErrorKind {
     UnspecifiedError,
     TokioRuntimeError {

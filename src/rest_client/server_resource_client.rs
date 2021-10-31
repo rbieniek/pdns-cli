@@ -1,12 +1,12 @@
 use log::{info, warn};
+use reqwest::{Client, StatusCode};
+use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderMap, HeaderValue, HeaderName};
 use tokio::sync::oneshot::{channel, Receiver, Sender};
 use tokio::task::JoinHandle;
 
 use crate::pdns::server::Server;
 use crate::rest_client::errors::RestClientError;
 use crate::rest_client::lifecycle::Disposeable;
-use reqwest::header::{HeaderMap, AUTHORIZATION, HeaderValue, ACCEPT};
-use reqwest::{StatusCode, Client};
 
 pub struct GetServerRequestEvent {
     base_uri: String,
@@ -30,6 +30,21 @@ impl GetServerRequestEvent {
             base_uri,
             api_key,
             response_channel,
+        }
+    }
+}
+
+impl GetServerResponseEvent {
+    pub fn new(result: Result<Server, RestClientError>) -> GetServerResponseEvent {
+        GetServerResponseEvent {
+            result
+        }
+    }
+
+    pub fn result(&self) -> Result<Server, RestClientError> {
+        match &self.result {
+            Ok(server) => Ok(server.clone()),
+            Err(error) => Err(error.clone())
         }
     }
 }
@@ -58,7 +73,7 @@ impl Disposeable for ServerResourceClient {
     }
 }
 
-async fn handle_request_event(mut event_rx: Receiver<GetServerRequestEvent>) {
+async fn handle_request_event(event_rx: Receiver<GetServerRequestEvent>) {
     match event_rx.await {
         Ok(request) => {
             info!("Received GetServerRequestEvent(baseUri={})", &request.base_uri);
@@ -67,8 +82,8 @@ async fn handle_request_event(mut event_rx: Receiver<GetServerRequestEvent>) {
             let mut headers = HeaderMap::new();
             let mut request_uri = request.base_uri.clone();
 
-            request_uri.push_str("servers/localhost");
-            headers.append(AUTHORIZATION,
+            request_uri.push_str("api/v1/servers/localhost");
+            headers.append(HeaderName::from_static("x-api-key"),
                            HeaderValue::from_str(request.api_key.clone().as_str()).unwrap());
             headers.append(ACCEPT, HeaderValue::from_static("application/json"));
 
@@ -76,14 +91,15 @@ async fn handle_request_event(mut event_rx: Receiver<GetServerRequestEvent>) {
                 .headers(headers)
                 .send()
                 .await {
-                Ok(rest_response) if rest_response.status() == StatusCode::OK => {
-                    Ok(())
+                Ok(rest_response) if rest_response.status() == StatusCode::OK => match rest_response.json::<Server>().await {
+                    Ok(server_response) => Ok(server_response),
+                    Err(rest_err) => Err(RestClientError::on_reqwest_runtime_error(rest_err.to_string())),
                 },
                 Ok(rest_response) => Err(RestClientError::on_client_error(rest_response.status())),
                 Err(rest_err) => Err(RestClientError::on_reqwest_runtime_error(rest_err.to_string())),
             };
 
-            if let Err(_) = request.response_channel.send(GetServerResponseEvent { result: Err(RestClientError::on_unspecified_error()) }) {
+            if let Err(_) = request.response_channel.send(GetServerResponseEvent::new(result)) {
                 warn!("Cannot send response");
             }
         }

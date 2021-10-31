@@ -8,6 +8,7 @@ use tokio::sync::oneshot::channel;
 use crate::app_config::cmd_line_parser::{ApplicationConfiguration, Command};
 use crate::rest_client::errors::RestClientError;
 use crate::rest_client::server_resource_client::{GetServerRequestEvent, GetServerResponseEvent, ServerResourceClient};
+use crate::pdns::server::DaemonType;
 
 mod app_config;
 mod rest_client;
@@ -61,10 +62,14 @@ async fn execute_add_zone(command: Command,
                                                                api_key.clone(),
                                                                response_event_tx)) {
             Ok(()) => match response_event_rx.await {
-                Ok(response) => {
-                    info!("Received GetServerResponseEvent event");
+                Ok(response) => match response.result() {
+                    Ok(server_response) if server_response.daemon_type() == DaemonType::Authoritative => {
+                        info!("Received Server data event: {}", server_response);
 
-                    Ok(())
+                        Ok(())
+                    },
+                    Ok(_) => Err(RestClientError::on_unspecified_error()),
+                    Err(error) => Err(error),
                 },
                 Err(error) => Err(RestClientError::on_tokio_runtime_error(error.to_string())),
             },

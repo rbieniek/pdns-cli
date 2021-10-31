@@ -117,7 +117,7 @@ pub fn parse_command_line() -> ArgMatches {
         )
         .arg(Arg::new(PARAM_API_KEY)
             .about("PowerDNS ReST API key")
-            .long(PARAM_BASE_URI)
+            .long(PARAM_API_KEY)
             .short('k')
             .takes_value(true)
             .required(true)
