@@ -14,8 +14,8 @@ services:
      - MYSQL_PASS=supersecret
      - MYSQL_PORT=3306
    ports:
-     - 53:53
-     - 53:53/udp
+     - 5353:53
+     - 5353:53/udp
      - 8080:8080
    volumes:
       - ./target/stack-files/pdns:/extern
