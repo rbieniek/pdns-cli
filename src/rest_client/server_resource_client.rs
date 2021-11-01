@@ -1,12 +1,12 @@
 use log::{info, warn};
-use reqwest::{Client, StatusCode};
-use reqwest::header::{ACCEPT, HeaderMap, HeaderValue, HeaderName};
+use reqwest::StatusCode;
 use tokio::sync::oneshot::{channel, Receiver, Sender};
 use tokio::task::JoinHandle;
 
 use crate::pdns::server::Server;
 use crate::rest_client::errors::RestClientError;
 use crate::rest_client::lifecycle::Disposeable;
+use crate::rest_client::client_request_builder::ClientRequestBuilder;
 
 pub struct GetServerRequestEvent {
     base_uri: String,
@@ -78,17 +78,8 @@ async fn handle_request_event(event_rx: Receiver<GetServerRequestEvent>) {
         Ok(request) => {
             info!("Received GetServerRequestEvent(baseUri={})", &request.base_uri);
 
-            let client = Client::new();
-            let mut headers = HeaderMap::new();
-            let mut request_uri = request.base_uri.clone();
-
-            request_uri.push_str("api/v1/servers/localhost");
-            headers.append(HeaderName::from_static("x-api-key"),
-                           HeaderValue::from_str(request.api_key.clone().as_str()).unwrap());
-            headers.append(ACCEPT, HeaderValue::from_static("application/json"));
-
-            let result = match client.get(request_uri)
-                .headers(headers)
+            let result = match ClientRequestBuilder::new(&request.base_uri, &request.api_key)
+                .for_path(&"api/v1/servers/localhost")
                 .send()
                 .await {
                 Ok(rest_response) if rest_response.status() == StatusCode::OK => match rest_response.json::<Server>().await {

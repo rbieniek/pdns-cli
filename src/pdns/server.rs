@@ -3,6 +3,7 @@ use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
 
 use crate::pdns::struct_type::StructType;
+use crate::pdns::common::PowerDnsPayload;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Server {
@@ -56,7 +57,7 @@ impl Server {
 
 impl Display for Server {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "type={}, id={} daemon_type={} version={} url={} confiig_url={} zones_url={}",
+        write!(f, "(type={}, id={} daemon_type={} version={} url={} confiig_url={} zones_url={})",
                self.type_id,
                &self.id,
                self.daemon_type,
@@ -74,6 +75,10 @@ impl Display for DaemonType {
             DaemonType::Recursor => write!(f, "RECURSOR")
         }
     }
+}
+
+impl PowerDnsPayload for Server {
+    
 }
 
 #[cfg(test)]

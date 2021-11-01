@@ -2,6 +2,8 @@ use std::fmt;
 
 use reqwest::StatusCode;
 
+use crate::pdns::error::Error;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RestClientError {
     pub(super) kind: RestClientErrorKind,
@@ -18,6 +20,9 @@ pub enum RestClientErrorKind {
     },
     ClientError {
         status_code: StatusCode,
+    },
+    PowerDnsServerError {
+        server_error: Error,
     },
 }
 
@@ -46,12 +51,28 @@ impl RestClientError {
         }
     }
 
+    pub fn on_powerdns_server_error(server_error: Error) -> RestClientError {
+        RestClientError {
+            kind: RestClientErrorKind::on_powerdns_server_error(server_error),
+        }
+    }
+
     fn __description(&self) -> String {
         match &self.kind {
             RestClientErrorKind::UnspecifiedError => format!("Unspecified error"),
-            RestClientErrorKind::TokioRuntimeError { tokio_error } => format!("Tokio runtime error: {}", tokio_error),
-            RestClientErrorKind::ReqwestRuntimeError { reqwest_error } => format!("Reqwest runtime error: {}", reqwest_error),
-            RestClientErrorKind::ClientError { status_code } => format!("Unexpected client status code {}", status_code),
+            RestClientErrorKind::TokioRuntimeError {
+                tokio_error
+            } => format!("Tokio runtime error: {}", tokio_error),
+            RestClientErrorKind::ReqwestRuntimeError {
+                reqwest_error
+            } => format!("Reqwest runtime error: {}", reqwest_error),
+            RestClientErrorKind::ClientError {
+                status_code
+            } => format!("Unexpected client status code {}", status_code),
+            RestClientErrorKind::PowerDnsServerError {
+                server_error
+            } => format!("PowerDNS server error: server error {}",
+                         server_error),
         }
     }
 }
@@ -77,5 +98,11 @@ impl RestClientErrorKind {
 
     fn on_client_error(status_code: StatusCode) -> RestClientErrorKind {
         RestClientErrorKind::ClientError { status_code }
+    }
+
+    fn on_powerdns_server_error(server_error: Error) -> RestClientErrorKind {
+        RestClientErrorKind::PowerDnsServerError {
+            server_error,
+        }
     }
 }
