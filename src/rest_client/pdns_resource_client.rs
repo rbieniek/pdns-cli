@@ -1,4 +1,4 @@
-use log::warn;
+use log::{warn, info};
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use tokio::sync::oneshot::{Receiver, Sender};
@@ -35,6 +35,8 @@ impl PowerDnsRestClient {
 
                 request_path.push_str(req_path_provider(&request_event).as_str());
 
+                info!("Executing GET request to resource {}", &request_path);
+
                 let result: Result<O, RestClientError> = match self.request_builder
                     .for_path(request_path.as_str())
                     .send()
@@ -43,10 +45,14 @@ impl PowerDnsRestClient {
                         Ok(server_response) => Ok(server_response),
                         Err(rest_err) => Err(RestClientError::on_reqwest_runtime_error(rest_err.to_string())),
                     },
-                    Ok(rest_response) if is_known_error(rest_response.status()) => match rest_response.json::<Error>().await {
-                        Ok(server_response) => Err(RestClientError::on_powerdns_server_error(server_response)),
-                        Err(rest_err) => Err(RestClientError::on_reqwest_runtime_error(rest_err.to_string())),
-                    },
+                    Ok(rest_response) if is_known_error(rest_response.status()) => {
+                        let status_code = rest_response.status();
+
+                        match rest_response.json::<Error>().await {
+                            Ok(server_response) => Err(RestClientError::on_powerdns_server_error(status_code, server_response)),
+                            Err(rest_err) => Err(RestClientError::on_reqwest_runtime_error(rest_err.to_string())),
+                        }
+                    }
                     Ok(rest_response) => Err(RestClientError::on_client_error(rest_response.status())),
                     Err(rest_err) => Err(RestClientError::on_reqwest_runtime_error(rest_err.to_string())),
                 };

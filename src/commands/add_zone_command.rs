@@ -26,7 +26,7 @@ impl AddZoneCommand {
     }
 
     async fn execute_get_zone(&self, zone_name: &String,
-                              ignore_existing: bool)  -> Result<(), RestClientError> {
+                              ignore_existing: bool) -> Result<(), RestClientError> {
         let mut zone_resource_client = ZoneResourceClient::new(&self.base_uri, &self.api_key);
         let (request_tx, request_rx) = channel::<GetZoneRequestEvent>();
         let (response_tx, response_rx) = channel::<PnsServerResponse<GetZoneRequestEvent, Zone>>();
@@ -42,11 +42,11 @@ impl AddZoneCommand {
                         Ok(())
                     }
                     Err(error) => match error.kind() {
-                        RestClientErrorKind::ClientError { status_code } if status_code == StatusCode::NOT_FOUND => {
+                        RestClientErrorKind::PowerDnsServerError { status_code, server_error } if status_code == StatusCode::NOT_FOUND => {
                             info!("Existing zone not found");
 
                             Ok(())
-                        },
+                        }
                         _ => Err(error.clone())
                     }
                 },
@@ -60,7 +60,7 @@ impl AddZoneCommand {
 #[async_trait]
 impl CommandExecutor for AddZoneCommand {
     async fn execute_command(&self,
-                              command: CommandParameters) -> Result<(), RestClientError> {
+                             command: CommandParameters) -> Result<(), RestClientError> {
         if let CommandParameters::AddZone { zone_name, ignore_existing } = command {
             info!("Executing command add-zone, zone {}, ignore existing {}", &zone_name, ignore_existing);
 
@@ -77,7 +77,7 @@ impl CommandExecutor for AddZoneCommand {
                             info!("Received Server data event: {}", server_response);
 
                             self.execute_get_zone(&zone_name, ignore_existing).await
-                        },
+                        }
                         Ok(_) => Err(RestClientError::on_unspecified_error()),
                         Err(error) => Err(error),
                     },

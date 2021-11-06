@@ -61,5 +61,5 @@ async fn handle_request_event(pdns_resource_client: Arc<PowerDnsRestClient>,
 }
 
 fn request_path(request: &GetZoneRequestEvent) -> String {
-    format!("zones/{}", &request.zone_name)
+    format!("servers/localhost/zones/{}", &request.zone_name)
 }

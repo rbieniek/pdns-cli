@@ -22,6 +22,7 @@ pub enum RestClientErrorKind {
         status_code: StatusCode,
     },
     PowerDnsServerError {
+        status_code: StatusCode,
         server_error: Error,
     },
 }
@@ -51,9 +52,9 @@ impl RestClientError {
         }
     }
 
-    pub fn on_powerdns_server_error(server_error: Error) -> RestClientError {
+    pub fn on_powerdns_server_error(status_code: StatusCode, server_error: Error) -> RestClientError {
         RestClientError {
-            kind: RestClientErrorKind::on_powerdns_server_error(server_error),
+            kind: RestClientErrorKind::on_powerdns_server_error(status_code, server_error),
         }
     }
 
@@ -74,8 +75,10 @@ impl RestClientError {
                 status_code
             } => format!("Unexpected client status code {}", status_code),
             RestClientErrorKind::PowerDnsServerError {
-                server_error
-            } => format!("PowerDNS server error: server error {}",
+                server_error,
+                status_code,
+            } => format!("PowerDNS server error: status code: {}, server error {}",
+                         status_code,
                          server_error),
         }
     }
@@ -104,8 +107,9 @@ impl RestClientErrorKind {
         RestClientErrorKind::ClientError { status_code }
     }
 
-    fn on_powerdns_server_error(server_error: Error) -> RestClientErrorKind {
+    fn on_powerdns_server_error(status_code: StatusCode, server_error: Error) -> RestClientErrorKind {
         RestClientErrorKind::PowerDnsServerError {
+            status_code,
             server_error,
         }
     }
