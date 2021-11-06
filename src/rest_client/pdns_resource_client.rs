@@ -67,6 +67,14 @@ impl<I, O> PnsServerResponse<I, O> where O: DeserializeOwned {
             response,
         }
     }
+
+    pub fn request(&self) -> &I {
+        &self.request
+    }
+
+    pub fn response(&self) -> &Result<O, RestClientError> {
+        &self.response
+    }
 }
 
 fn is_known_error(status_code: StatusCode) -> bool {

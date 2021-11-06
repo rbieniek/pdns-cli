@@ -57,6 +57,10 @@ impl RestClientError {
         }
     }
 
+    pub fn kind(&self) -> RestClientErrorKind {
+        self.kind.clone()
+    }
+
     fn __description(&self) -> String {
         match &self.kind {
             RestClientErrorKind::UnspecifiedError => format!("Unspecified error"),
