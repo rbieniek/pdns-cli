@@ -1,8 +1,10 @@
-use crate::rest_client::pdns_resource_client::{PowerDnsRestClient, ResponseEvent, RequestEvent, RequestPathProvider};
-use crate::rest_client::client_request_builder::ClientRequestBuilder;
+use tokio::sync::oneshot::{channel, Receiver, Sender};
+
+use crate::pdns::common::PowerDnsPayload;
 use crate::pdns::zone::Zone;
+use crate::rest_client::client_request_builder::ClientRequestBuilder;
 use crate::rest_client::errors::RestClientError;
-use tokio::sync::oneshot::{Sender, Receiver};
+use crate::rest_client::pdns_resource_client::{PathProvider, PnsServerResponse, PowerDnsRestClient, RequestEvent, RequestPathProvider, ResponseEvent};
 
 pub struct ZoneResourceClient {
     pdns_resource_client: PowerDnsRestClient,
@@ -10,7 +12,6 @@ pub struct ZoneResourceClient {
 
 pub struct GetZoneRequestEvent {
     zone_name: String,
-    response_channel: Sender<Box<GetZoneResponseEvent>>,
 }
 
 pub struct GetZoneResponseEvent {
@@ -28,15 +29,18 @@ impl ZoneResourceClient {
         }
     }
 
-    pub async fn handle_request_event(&self, event_rx : Receiver<Box<GetZoneRequestEvent>>) {
-        let client = &self.pdns_resource_client;
-
-        client.handle_request_event(event_rx);
+    pub async fn handle_request_event(&self,
+                                      request_rx: Receiver<GetZoneRequestEvent>,
+                                      response_tx: Sender<PnsServerResponse<GetZoneRequestEvent, Zone>>) {
+        &self.pdns_resource_client
+            .handle_request_event_alt::<GetZoneRequestEvent, Zone, PathProvider<GetZoneRequestEvent>>(request_rx,
+                                      response_tx,
+                                      request_path);
     }
 }
 
 impl GetZoneResponseEvent {
-    fn new(result : Result<Zone, RestClientError>) -> GetZoneResponseEvent {
+    fn new(result: Result<Zone, RestClientError>) -> GetZoneResponseEvent {
         GetZoneResponseEvent {
             result,
         }
@@ -54,10 +58,6 @@ impl RequestEvent<Zone> for GetZoneRequestEvent {
         Box::new(GetZoneResponseEvent::new(result))
     }
 
-    fn response_channel(&self) -> Sender<Box<dyn ResponseEvent<Zone>>> {
-        self.response_channel
-    }
-
     fn request_path_provider(&self) -> Box<dyn RequestPathProvider> {
         Box::new(GetZoneRequestPathProvider::new(&self.zone_name))
     }
@@ -67,7 +67,7 @@ impl GetZoneRequestPathProvider {
     fn new(zone_name: &String) -> GetZoneRequestPathProvider {
         return GetZoneRequestPathProvider {
             request_path: format!("zones/{}", zone_name)
-        }
+        };
     }
 }
 
@@ -75,4 +75,8 @@ impl RequestPathProvider for GetZoneRequestPathProvider {
     fn provide_request_path(&self) -> String {
         self.request_path.clone()
     }
+}
+
+fn request_path(request: &GetZoneRequestEvent) -> String {
+    format!("zones/{}", &request.zone_name)
 }
