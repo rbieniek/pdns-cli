@@ -3,16 +3,21 @@ use std::sync::Arc;
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
-use crate::pdns::zone::Zone;
+use crate::pdns::struct_type::StructType;
+use crate::pdns::zone::{NewZone, Zone, Rrset};
 use crate::rest_client::client_request_builder::ClientRequestBuilder;
-use crate::rest_client::pdns_resource_client::{PathProvider, PnsServerResponse, PowerDnsRestClient};
+use crate::rest_client::pdns_resource_client::{PnsServerResponse, PowerDnsRestClient};
 
 pub struct ZoneResourceClient {
     pdns_resource_client: Arc<PowerDnsRestClient>,
     join_handles: Vec<JoinHandle<()>>,
 }
 
-pub struct GetZoneRequestEvent {
+pub struct QueryZoneRequestEvent {
+    zone_name: String,
+}
+
+pub struct CreateZoneRequestEvent {
     zone_name: String,
 }
 
@@ -24,18 +29,18 @@ impl ZoneResourceClient {
         }
     }
 
-    pub fn spawn_handler(&mut self,
-                         request_rx: Receiver<GetZoneRequestEvent>,
-                         response_tx: Sender<PnsServerResponse<GetZoneRequestEvent, Zone>>) {
-        self.join_handles.push(tokio::spawn(handle_request_event(self.pdns_resource_client.clone(),
-                                                                 request_rx,
-                                                                 response_tx)));
+    pub fn spawn_get(&mut self,
+                     request_rx: Receiver<QueryZoneRequestEvent>,
+                     response_tx: Sender<PnsServerResponse<QueryZoneRequestEvent, Zone>>) {
+        self.join_handles.push(tokio::spawn(handle_get_request(self.pdns_resource_client.clone(),
+                                                               request_rx,
+                                                               response_tx)));
     }
 }
 
-impl GetZoneRequestEvent {
-    pub fn new(zone_name: &String) -> GetZoneRequestEvent {
-        GetZoneRequestEvent {
+impl QueryZoneRequestEvent {
+    pub fn new(zone_name: &String) -> QueryZoneRequestEvent {
+        QueryZoneRequestEvent {
             zone_name: zone_name.clone(),
         }
     }
@@ -49,17 +54,40 @@ impl Drop for ZoneResourceClient {
     }
 }
 
-async fn handle_request_event(pdns_resource_client: Arc<PowerDnsRestClient>,
-                              request_rx: Receiver<GetZoneRequestEvent>,
-                              response_tx: Sender<PnsServerResponse<GetZoneRequestEvent, Zone>>) {
+async fn handle_get_request(pdns_resource_client: Arc<PowerDnsRestClient>,
+                            request_rx: Receiver<QueryZoneRequestEvent>,
+                            response_tx: Sender<PnsServerResponse<QueryZoneRequestEvent, Zone>>) {
     pdns_resource_client
-        .handle_request_event::<GetZoneRequestEvent,
-            Zone,
-            PathProvider<GetZoneRequestEvent>>(request_rx,
-                                               response_tx,
-                                               request_path).await
+        .handle_get_request::<QueryZoneRequestEvent,
+            Zone>(request_rx,
+                  response_tx,
+                  get_zone_request_path).await
 }
 
-fn request_path(request: &GetZoneRequestEvent) -> String {
+async fn handle_create_zone_request(pdns_resource_client: Arc<PowerDnsRestClient>,
+                                    request_rx: Receiver<CreateZoneRequestEvent>,
+                                    response_tx: Sender<PnsServerResponse<CreateZoneRequestEvent, Zone>>) {
+    pdns_resource_client
+        .handle_post_request::<CreateZoneRequestEvent,
+            Zone, NewZone>(request_rx,
+                           response_tx,
+                           post_zone_request,
+                           create_zone_body_provider).await
+}
+
+fn get_zone_request_path(request: &QueryZoneRequestEvent) -> String {
     format!("servers/localhost/zones/{}", &request.zone_name)
+}
+
+fn post_zone_request(_request: &CreateZoneRequestEvent) -> String {
+    "servers/localhost/zones".to_string()
+}
+
+fn create_zone_body_provider(request: &CreateZoneRequestEvent) -> NewZone {
+    let mut rrsets: Vec<Rrset> = Vec::new();
+    let mut nameservers: Vec<String> = Vec::new();
+
+    NewZone::new(&request.zone_name, &rrsets, &vec![], &nameservers,
+                 false, None, false, false,
+                 None, None)
 }

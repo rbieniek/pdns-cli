@@ -8,7 +8,7 @@ use crate::rest_client::server_resource_client::{GetServerRequestEvent, GetServe
 use crate::rest_client::pdns_resource_client::PnsServerResponse;
 use crate::pdns::server::DaemonType;
 use crate::commands::command_handler::CommandExecutor;
-use crate::rest_client::zone_resource_client::{ZoneResourceClient, GetZoneRequestEvent};
+use crate::rest_client::zone_resource_client::{ZoneResourceClient, QueryZoneRequestEvent};
 use crate::pdns::zone::Zone;
 use reqwest::StatusCode;
 
@@ -28,12 +28,12 @@ impl AddZoneCommand {
     async fn execute_get_zone(&self, zone_name: &String,
                               ignore_existing: bool) -> Result<(), RestClientError> {
         let mut zone_resource_client = ZoneResourceClient::new(&self.base_uri, &self.api_key);
-        let (request_tx, request_rx) = channel::<GetZoneRequestEvent>();
-        let (response_tx, response_rx) = channel::<PnsServerResponse<GetZoneRequestEvent, Zone>>();
+        let (request_tx, request_rx) = channel::<QueryZoneRequestEvent>();
+        let (response_tx, response_rx) = channel::<PnsServerResponse<QueryZoneRequestEvent, Zone>>();
 
-        zone_resource_client.spawn_handler(request_rx, response_tx);
+        zone_resource_client.spawn_get(request_rx, response_tx);
 
-        match request_tx.send(GetZoneRequestEvent::new(zone_name)) {
+        match request_tx.send(QueryZoneRequestEvent::new(zone_name)) {
             Ok(()) => match response_rx.await {
                 Ok(response_container) => match response_container.response() {
                     Ok(zone) => {

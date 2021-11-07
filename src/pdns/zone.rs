@@ -31,6 +31,23 @@ pub struct Zone {
     slave_tsig_key_ids: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NewZone {
+    name: String,
+    #[serde(rename = "type")]
+    type_id: StructType,
+    kind: ZoneKind,
+    rrsets: Vec<Rrset>,
+    masters: Vec<String>,
+    dnssec: bool,
+    nsec3param: Option<String>,
+    nsec3narrow: bool,
+    presigned: bool,
+    nameservers: Vec<String>,
+    master_tsig_key_ids: Option<String>,
+    slave_tsig_key_ids: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ZoneKind {
     Native,
@@ -92,6 +109,30 @@ pub struct Comment {
 
 impl PowerDnsPayload for Zone {}
 
+impl NewZone {
+    pub fn new(name: &String, rrsets: &Vec<Rrset>, masters: &Vec<String>,
+               nameservers: &Vec<String>,
+               dnssec: bool,
+               nsec3param: Option<String>, nsec3narrow: bool,
+               presigned: bool, master_tsig_key_ids: Option<String>,
+               slave_tsig_key_ids: Option<String>) -> NewZone {
+        NewZone {
+            name: name.clone(),
+            type_id: StructType::Zone,
+            kind: ZoneKind::Native,
+            rrsets: rrsets.clone(),
+            masters: masters.clone(),
+            dnssec: dnssec,
+            nsec3param: nsec3param,
+            nsec3narrow: nsec3narrow,
+            presigned: presigned,
+            nameservers: nameservers.clone(),
+            master_tsig_key_ids: master_tsig_key_ids,
+            slave_tsig_key_ids: slave_tsig_key_ids,
+        }
+    }
+}
+
 impl Display for Zone {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut rrsets: Vec<String> = Vec::new();
@@ -109,6 +150,24 @@ impl Display for Zone {
                &self.account.clone().unwrap_or(String::new()),
                &self.nameservers.join(", "), &self.master_tsig_key_ids,
                &self.slave_tsig_key_ids)
+    }
+}
+
+impl Display for NewZone {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut rrsets: Vec<String> = Vec::new();
+
+        for rrset in &self.rrsets {
+            rrsets.push(format!("{}", rrset));
+        }
+
+        write!(f, "(name: {}, type: {}, kind: {}, rrsets: ({}), masters: ({}), dnssec: {}, nsec3param: {}, nsec3narrow: {}, presigned: {}, nameservers: ({}), master_tsig_key_ids: {}, slave_tsig_key_ids: {})",
+               &self.name, &self.type_id, &self.kind, rrsets.join(", "),
+               &self.masters.join(", "), self.dnssec,
+               &self.nsec3param.clone().unwrap_or(String::new()), self.nsec3narrow,
+               self.presigned, &self.nameservers.join(", "),
+               &self.master_tsig_key_ids.clone().unwrap_or(String::new()),
+               &self.slave_tsig_key_ids.clone().unwrap_or(String::new()))
     }
 }
 

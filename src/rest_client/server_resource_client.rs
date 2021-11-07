@@ -79,7 +79,7 @@ async fn handle_request_event(event_rx: Receiver<GetServerRequestEvent>) {
             info!("Received GetServerRequestEvent(baseUri={})", &request.base_uri);
 
             let result = match ClientRequestBuilder::new(&request.base_uri, &request.api_key)
-                .for_path(&"api/v1/servers/localhost")
+                .get_for_path(&"api/v1/servers/localhost")
                 .send()
                 .await {
                 Ok(rest_response) if rest_response.status() == StatusCode::OK => match rest_response.json::<Server>().await {
