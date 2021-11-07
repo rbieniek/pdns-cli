@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::pdns::common::PowerDnsPayload;
 use crate::pdns::struct_type::StructType;
+use std::time::SystemTime;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Zone {
@@ -59,7 +60,7 @@ pub enum ZoneKind {
 pub struct Rrset {
     name: String,
     #[serde(rename = "type")]
-    type_id: StructType,
+    type_id: RrsetType,
     changetype: Option<Changetype>,
     records: Vec<Record>,
     comments: Vec<Comment>,
@@ -106,7 +107,6 @@ pub struct Comment {
     modified_at: u64,
 }
 
-
 impl PowerDnsPayload for Zone {}
 
 impl NewZone {
@@ -116,19 +116,76 @@ impl NewZone {
                nsec3param: Option<String>, nsec3narrow: bool,
                presigned: bool, master_tsig_key_ids: Option<String>,
                slave_tsig_key_ids: Option<String>) -> NewZone {
-        NewZone {
+        if nameservers.is_empty() {
+            NewZone {
+                name: name.clone(),
+                type_id: StructType::Zone,
+                kind: ZoneKind::Slave,
+                rrsets: Vec::new(),
+                masters: masters.clone(),
+                dnssec: dnssec,
+                nsec3param: nsec3param,
+                nsec3narrow: nsec3narrow,
+                presigned: presigned,
+                nameservers: Vec::new(),
+                master_tsig_key_ids: master_tsig_key_ids,
+                slave_tsig_key_ids: slave_tsig_key_ids,
+            }
+        } else {
+            NewZone {
+                name: name.clone(),
+                type_id: StructType::Zone,
+                kind: ZoneKind::Native,
+                rrsets: rrsets.clone(),
+                masters: Vec::new(),
+                dnssec: dnssec,
+                nsec3param: nsec3param,
+                nsec3narrow: nsec3narrow,
+                presigned: presigned,
+                nameservers: nameservers.clone(),
+                master_tsig_key_ids: master_tsig_key_ids,
+                slave_tsig_key_ids: slave_tsig_key_ids,
+            }
+        }
+    }
+}
+
+impl Rrset {
+    pub fn new(name: &String,
+               type_id: RrsetType,
+               changetype: &Option<Changetype>,
+               records: &Vec<Record>,
+               comments: &Vec<Comment>) -> Rrset {
+        Rrset {
             name: name.clone(),
-            type_id: StructType::Zone,
-            kind: ZoneKind::Native,
-            rrsets: rrsets.clone(),
-            masters: masters.clone(),
-            dnssec: dnssec,
-            nsec3param: nsec3param,
-            nsec3narrow: nsec3narrow,
-            presigned: presigned,
-            nameservers: nameservers.clone(),
-            master_tsig_key_ids: master_tsig_key_ids,
-            slave_tsig_key_ids: slave_tsig_key_ids,
+            type_id: type_id,
+            changetype: changetype.clone(),
+            records: records.clone(),
+            comments: comments.clone(),
+        }
+    }
+}
+
+impl Comment {
+    pub fn new(content: &String, account: &String) -> Comment {
+        let stamp = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(value) => value.as_secs(),
+            Err(_) => 0 as u64
+        };
+
+        Comment {
+            content: content.clone(),
+            account: account.clone(),
+            modified_at: stamp,
+        }
+    }
+}
+
+impl Record {
+    pub fn new(content: &String, disabled: bool) -> Record {
+        Record {
+            content: content.clone(),
+            disabled,
         }
     }
 }

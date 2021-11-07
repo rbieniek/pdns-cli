@@ -3,9 +3,10 @@ use std::sync::Arc;
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
-use crate::pdns::zone::{NewZone, Zone, Rrset};
+use crate::pdns::zone::{NewZone, Zone, Rrset, RrsetType, Record};
 use crate::rest_client::client_request_builder::ClientRequestBuilder;
 use crate::rest_client::pdns_resource_client::{PnsServerResponse, PowerDnsRestClient};
+use chrono::{DateTime, Utc};
 
 pub struct ZoneResourceClient {
     pdns_resource_client: Arc<PowerDnsRestClient>,
@@ -24,6 +25,7 @@ pub struct CreateZoneRequestEvent {
     neg_caching: u32,
     masters: Vec<String>,
     nameservers: Vec<String>,
+    account: String,
 }
 
 impl ZoneResourceClient {
@@ -34,12 +36,20 @@ impl ZoneResourceClient {
         }
     }
 
-    pub fn spawn_get(&mut self,
-                     request_rx: Receiver<QueryZoneRequestEvent>,
-                     response_tx: Sender<PnsServerResponse<QueryZoneRequestEvent, Zone>>) {
+    pub fn spawn_query(&mut self,
+                       request_rx: Receiver<QueryZoneRequestEvent>,
+                       response_tx: Sender<PnsServerResponse<QueryZoneRequestEvent, Zone>>) {
         self.join_handles.push(tokio::spawn(handle_get_request(self.pdns_resource_client.clone(),
                                                                request_rx,
                                                                response_tx)));
+    }
+
+    pub fn spawn_create(&mut self,
+                        request_rx: Receiver<CreateZoneRequestEvent>,
+                        response_tx: Sender<PnsServerResponse<CreateZoneRequestEvent, Zone>>) {
+        self.join_handles.push(tokio::spawn(handle_create_zone_request(self.pdns_resource_client.clone(),
+                                                                       request_rx,
+                                                                       response_tx)));
     }
 }
 
@@ -47,6 +57,22 @@ impl QueryZoneRequestEvent {
     pub fn new(zone_name: &String) -> QueryZoneRequestEvent {
         QueryZoneRequestEvent {
             zone_name: zone_name.clone(),
+        }
+    }
+}
+
+impl CreateZoneRequestEvent {
+    pub fn new(zone_name: &String, refresh: u32, retry: u32, expire: u32, neg_caching: u32,
+               masters: &Vec<String>, nameservers: &Vec<String>, account: &String) -> CreateZoneRequestEvent {
+        CreateZoneRequestEvent {
+            zone_name: zone_name.clone(),
+            refresh,
+            retry,
+            expire,
+            neg_caching,
+            masters: masters.clone(),
+            nameservers: nameservers.clone(),
+            account: account.clone(),
         }
     }
 }
@@ -90,9 +116,26 @@ fn post_zone_request(_request: &CreateZoneRequestEvent) -> String {
 
 fn create_zone_body_provider(request: &CreateZoneRequestEvent) -> NewZone {
     let mut rrsets: Vec<Rrset> = Vec::new();
-    let mut nameservers: Vec<String> = Vec::new();
+    let comments: Vec<String> = Vec::new();
+    let utc: DateTime<Utc> = Utc::now();
+    let serial = utc.format("%Y%m%d%H%M").to_string();
 
-    NewZone::new(&request.zone_name, &rrsets, &vec![], &nameservers,
+    rrsets.push(Rrset::new(&request.zone_name, RrsetType::Soa, &None,
+                           &vec![
+                               Record::new(&format!("{} {}.{} {} {} {} {} {}",
+                                                    &request.zone_name,
+                                                    &request.account,
+                                                    &request.zone_name,
+                                                    serial,
+                                                    request.refresh,
+                                                    request.retry,
+                                                    request.expire,
+                                                    request.neg_caching),
+                                           false)
+                           ],
+                           &Vec::new()));
+
+    NewZone::new(&request.zone_name, &rrsets, &request.masters, &request.nameservers,
                  false, None, false, false,
                  None, None)
 }

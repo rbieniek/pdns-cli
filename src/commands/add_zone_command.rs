@@ -10,7 +10,7 @@ use crate::pdns::zone::Zone;
 use crate::rest_client::errors::{RestClientError, RestClientErrorKind};
 use crate::rest_client::pdns_resource_client::PnsServerResponse;
 use crate::rest_client::server_resource_client::{GetServerRequestEvent, GetServerResponseEvent, ServerResourceClient};
-use crate::rest_client::zone_resource_client::{QueryZoneRequestEvent, ZoneResourceClient};
+use crate::rest_client::zone_resource_client::{QueryZoneRequestEvent, ZoneResourceClient, CreateZoneRequestEvent};
 
 pub struct AddZoneCommand {
     base_uri: String,
@@ -34,13 +34,13 @@ impl AddZoneCommand {
         let (request_tx, request_rx) = channel::<QueryZoneRequestEvent>();
         let (response_tx, response_rx) = channel::<PnsServerResponse<QueryZoneRequestEvent, Zone>>();
 
-        zone_resource_client.spawn_get(request_rx, response_tx);
+        zone_resource_client.spawn_query(request_rx, response_tx);
 
         match request_tx.send(QueryZoneRequestEvent::new(&self.zone_name)) {
             Ok(()) => match response_rx.await {
                 Ok(response_container) => match response_container.response() {
                     Ok(zone) => {
-                        info!("Received Zone data event: {}", zone);
+                        info!("Received zone data event: {}", zone);
 
                         Ok(())
                     }
@@ -48,10 +48,38 @@ impl AddZoneCommand {
                         RestClientErrorKind::PowerDnsServerError { status_code, server_error } if status_code == StatusCode::NOT_FOUND => {
                             info!("Existing zone not found");
 
-                            Ok(())
+                            self.execute_create_zone(refresh, retry, expire, neg_caching,
+                                                     masters, nameservers, account).await
                         }
                         _ => Err(error.clone())
                     }
+                },
+                Err(error) => Err(RestClientError::on_tokio_runtime_error(error.to_string())),
+            }
+            Err(_) => Err(RestClientError::on_unspecified_error()),
+        }
+    }
+
+    async fn execute_create_zone(&self, refresh: u32, retry: u32, expire: u32,
+                                 neg_caching: u32, masters: &Vec<String>,
+                                 nameservers: &Vec<String>, account: &String) -> Result<(), RestClientError> {
+        let mut zone_resource_client = ZoneResourceClient::new(&self.base_uri, &self.api_key);
+        let (request_tx, request_rx) = channel::<CreateZoneRequestEvent>();
+        let (response_tx, response_rx) = channel::<PnsServerResponse<CreateZoneRequestEvent, Zone>>();
+
+        zone_resource_client.spawn_create(request_rx, response_tx);
+
+        match request_tx.send(CreateZoneRequestEvent::new(&self.zone_name, refresh, retry,
+                                                          expire, neg_caching, masters,
+                                                          nameservers, account)) {
+            Ok(()) => match response_rx.await {
+                Ok(response_container) => match response_container.response() {
+                    Ok(zone) => {
+                        info!("Received create zone data event: {}", zone);
+
+                        Ok(())
+                    }
+                    Err(error) => Err(error.clone()),
                 },
                 Err(error) => Err(RestClientError::on_tokio_runtime_error(error.to_string())),
             }
