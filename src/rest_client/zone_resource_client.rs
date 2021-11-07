@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
-use crate::pdns::zone::{NewZone, Zone, Rrset, RrsetType, Record};
+use crate::pdns::zone::{NewZone, Record, Rrset, RrsetType, Zone};
 use crate::rest_client::client_request_builder::ClientRequestBuilder;
 use crate::rest_client::pdns_resource_client::{PnsServerResponse, PowerDnsRestClient};
-use chrono::{DateTime, Utc};
 
 pub struct ZoneResourceClient {
     pdns_resource_client: Arc<PowerDnsRestClient>,
@@ -116,16 +116,26 @@ fn post_zone_request(_request: &CreateZoneRequestEvent) -> String {
 
 fn create_zone_body_provider(request: &CreateZoneRequestEvent) -> NewZone {
     let mut rrsets: Vec<Rrset> = Vec::new();
-    let comments: Vec<String> = Vec::new();
     let utc: DateTime<Utc> = Utc::now();
-    let serial = utc.format("%Y%m%d%H%M").to_string();
+    let serial = utc.format("%Y%m%d").to_string();
+    let mut nameservers: Vec<String> = Vec::new();
+    let mut masters: Vec<String> = Vec::new();
 
-    rrsets.push(Rrset::new(&request.zone_name, RrsetType::Soa, &None,
+    for value in request.nameservers.iter() {
+        nameservers.push(canonicalize_name(value));
+    }
+    for value in request.masters.iter() {
+        masters.push(canonicalize_name(value));
+    }
+
+    rrsets.push(Rrset::new(&canonicalize_name(&request.zone_name), RrsetType::Soa,
+                           &None,
+                           &Some(request.refresh),
                            &vec![
-                               Record::new(&format!("{} {}.{} {} {} {} {} {}",
-                                                    &request.zone_name,
+                               Record::new(&format!("{} {}.{} {}01 {} {} {} {}",
+                                                    canonicalize_name(&request.zone_name),
                                                     &request.account,
-                                                    &request.zone_name,
+                                                    canonicalize_name(&request.zone_name),
                                                     serial,
                                                     request.refresh,
                                                     request.retry,
@@ -135,7 +145,15 @@ fn create_zone_body_provider(request: &CreateZoneRequestEvent) -> NewZone {
                            ],
                            &Vec::new()));
 
-    NewZone::new(&request.zone_name, &rrsets, &request.masters, &request.nameservers,
+    NewZone::new(&request.zone_name, &rrsets, &masters, &nameservers,
                  false, None, false, false,
                  None, None)
+}
+
+fn canonicalize_name(name: &String) -> String {
+    if !name.ends_with(".") {
+        format!("{}.", name)
+    } else {
+        name.clone()
+    }
 }

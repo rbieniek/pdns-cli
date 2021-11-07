@@ -1,12 +1,12 @@
-use log::{warn, info};
+use log::{info, warn};
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use tokio::sync::oneshot::{Receiver, Sender};
 
 use crate::pdns::error::Error;
 use crate::rest_client::client_request_builder::ClientRequestBuilder;
 use crate::rest_client::errors::RestClientError;
-use serde::Serialize;
 
 pub struct PowerDnsRestClient {
     request_builder: ClientRequestBuilder,
@@ -76,15 +76,17 @@ impl PowerDnsRestClient {
         match request_rx.await {
             Ok(request_event) => {
                 let mut request_path = "api/v1/".to_string();
+                let payload: T = body_provider(&request_event);
 
                 request_path.push_str(req_path_provider(&request_event).as_str());
 
-
-                info!("Executing POST request to resource {}", &request_path);
+                info!("Executing POST request to resource {} with payload {}",
+                    &request_path,
+                    serde_json::to_string(&payload).unwrap());
 
                 let result: Result<O, RestClientError> = match self.request_builder
                     .post_for_path(request_path.as_str())
-                    .json(&body_provider(&request_event))
+                    .json(&payload)
                     .send()
                     .await {
                     Ok(rest_response) if is_success(rest_response.status()) => match rest_response.json::<O>().await {

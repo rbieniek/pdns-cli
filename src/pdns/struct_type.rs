@@ -3,6 +3,7 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum StructType {
+    None,
     Server,
     Zone,
 }
@@ -12,6 +13,7 @@ impl Display for StructType {
         match self {
             StructType::Server => write!(f, "SERVER"),
             StructType::Zone => write!(f, "ZONE"),
+            StructType::None => write!(f, "(pseudo)NONE"),
         }
     }
 }

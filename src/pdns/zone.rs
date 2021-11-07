@@ -1,17 +1,17 @@
 use std::fmt::{Display, Formatter};
+use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 
 use crate::pdns::common::PowerDnsPayload;
 use crate::pdns::struct_type::StructType;
-use std::time::SystemTime;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Zone {
     id: String,
     name: String,
     #[serde(rename = "type")]
-    type_id: StructType,
+    type_id: Option<StructType>,
     url: String,
     kind: ZoneKind,
     rrsets: Vec<Rrset>,
@@ -21,15 +21,15 @@ pub struct Zone {
     dnssec: bool,
     nsec3param: String,
     nsec3narrow: bool,
-    presigned: bool,
+    presigned: Option<bool>,
     soa_edit: String,
     soa_edit_api: String,
     api_rectify: bool,
     zone: Option<String>,
     account: Option<String>,
-    nameservers: Vec<String>,
-    master_tsig_key_ids: String,
-    slave_tsig_key_ids: String,
+    nameservers: Option<Vec<String>>,
+    master_tsig_key_ids: Vec<String>,
+    slave_tsig_key_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -45,8 +45,8 @@ pub struct NewZone {
     nsec3narrow: bool,
     presigned: bool,
     nameservers: Vec<String>,
-    master_tsig_key_ids: Option<String>,
-    slave_tsig_key_ids: Option<String>,
+    master_tsig_key_ids: Option<Vec<String>>,
+    slave_tsig_key_ids: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -61,6 +61,7 @@ pub struct Rrset {
     name: String,
     #[serde(rename = "type")]
     type_id: RrsetType,
+    ttl: Option<u32>,
     changetype: Option<Changetype>,
     records: Vec<Record>,
     comments: Vec<Comment>,
@@ -114,11 +115,11 @@ impl NewZone {
                nameservers: &Vec<String>,
                dnssec: bool,
                nsec3param: Option<String>, nsec3narrow: bool,
-               presigned: bool, master_tsig_key_ids: Option<String>,
-               slave_tsig_key_ids: Option<String>) -> NewZone {
+               presigned: bool, master_tsig_key_ids: Option<Vec<String>>,
+               slave_tsig_key_ids: Option<Vec<String>>) -> NewZone {
         if nameservers.is_empty() {
             NewZone {
-                name: name.clone(),
+                name: canonicalize_name(name),
                 type_id: StructType::Zone,
                 kind: ZoneKind::Slave,
                 rrsets: Vec::new(),
@@ -133,7 +134,7 @@ impl NewZone {
             }
         } else {
             NewZone {
-                name: name.clone(),
+                name: canonicalize_name(name),
                 type_id: StructType::Zone,
                 kind: ZoneKind::Native,
                 rrsets: rrsets.clone(),
@@ -154,12 +155,14 @@ impl Rrset {
     pub fn new(name: &String,
                type_id: RrsetType,
                changetype: &Option<Changetype>,
+               ttl: &Option<u32>,
                records: &Vec<Record>,
                comments: &Vec<Comment>) -> Rrset {
         Rrset {
             name: name.clone(),
             type_id: type_id,
             changetype: changetype.clone(),
+            ttl: ttl.clone(),
             records: records.clone(),
             comments: comments.clone(),
         }
@@ -199,14 +202,17 @@ impl Display for Zone {
         }
 
         write!(f, "(id: {}, name: {}, type: {}, kind: {}, url: {}, rrsets: ({}), serial: {},  edited_serial: {}, masters: ({}), dnssec: {}, nsec3param: {}, nsec3narrow: {}, presigned: {}, soa_edit: {}, soa_edit_api: {}, api_rectify: {}, zone: {}, account: {}, nameservers: ({}), master_tsig_key_ids: {}, slave_tsig_key_ids: {})",
-               &self.id, &self.name, &self.type_id, &self.kind, &self.url,
+               &self.id, &self.name, &self.type_id.clone().unwrap_or(StructType::None),
+               &self.kind, &self.url,
                rrsets.join(", "), self.serial, self.edited_serial,
                &self.masters.join(", "), self.dnssec, &self.nsec3param, self.nsec3narrow,
-               self.presigned, &self.soa_edit, &self.soa_edit_api, self.api_rectify,
+               self.presigned.clone().unwrap_or(false), &self.soa_edit, &self.soa_edit_api,
+               self.api_rectify,
                &self.zone.clone().unwrap_or(String::new()),
                &self.account.clone().unwrap_or(String::new()),
-               &self.nameservers.join(", "), &self.master_tsig_key_ids,
-               &self.slave_tsig_key_ids)
+               &self.nameservers.clone().unwrap_or(Vec::new()).join(", "),
+               &self.master_tsig_key_ids.join(", "),
+               &self.slave_tsig_key_ids.join(", "))
     }
 }
 
@@ -223,8 +229,8 @@ impl Display for NewZone {
                &self.masters.join(", "), self.dnssec,
                &self.nsec3param.clone().unwrap_or(String::new()), self.nsec3narrow,
                self.presigned, &self.nameservers.join(", "),
-               &self.master_tsig_key_ids.clone().unwrap_or(String::new()),
-               &self.slave_tsig_key_ids.clone().unwrap_or(String::new()))
+               &self.master_tsig_key_ids.clone().unwrap_or(Vec::new()).join(", "),
+               &self.slave_tsig_key_ids.clone().unwrap_or(Vec::new()).join(", "))
     }
 }
 
@@ -281,5 +287,13 @@ impl Display for Comment {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "(content: {}, account: {}, modified_at {})",
                &self.content, &self.account, self.modified_at)
+    }
+}
+
+fn canonicalize_name(name: &String) -> String {
+    if !name.ends_with(".") {
+        format!("{}.", name)
+    } else {
+        name.clone()
     }
 }

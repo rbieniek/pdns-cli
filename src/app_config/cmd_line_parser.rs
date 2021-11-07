@@ -80,9 +80,9 @@ impl ApplicationConfiguration {
                 kind: CommandKind::AddZone,
                 parameters: CommandParameters::AddZone {
                     refresh: arg_u32(&command, PARAM_REFRESH_TIME).unwrap_or(3600),
-                    retry: arg_u32(&command, PARAM_RETRY_TIME).unwrap_or(3600),
-                    expire: arg_u32(&command, PARAM_EXPIRE_TIME).unwrap_or(3600),
-                    neg_caching: arg_u32(&command, PARAM_NEG_CACHE_TIME).unwrap_or(3600),
+                    retry: arg_u32(&command, PARAM_RETRY_TIME).unwrap_or(1800),
+                    expire: arg_u32(&command, PARAM_EXPIRE_TIME).unwrap_or(604800),
+                    neg_caching: arg_u32(&command, PARAM_NEG_CACHE_TIME).unwrap_or(600),
                     masters: arg_str_vec(&command, PARAM_MASTER),
                     nameservers: arg_str_vec(&command, PARAM_NAMESERVER),
                     account: command.value_of(PARAM_ACCOUNT).unwrap_or("root").to_string(),

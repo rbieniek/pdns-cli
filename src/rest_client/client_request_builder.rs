@@ -40,6 +40,6 @@ impl ClientRequestBuilder {
         headers.append(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers.append(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
 
-        client.get(request_uri).headers(headers)
+        client.post(request_uri).headers(headers)
     }
 }
