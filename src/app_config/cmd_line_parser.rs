@@ -18,6 +18,7 @@ const PARAM_EXPIRE_TIME: &'static str = "expire-time";
 const PARAM_NEG_CACHE_TIME: &'static str = "negative-cache-time";
 const PARAM_NAMESERVER: &'static str = "nameserver";
 const PARAM_MASTER: &'static str = "master";
+const PARAM_ACCOUNT: &'static str = "account";
 const SUBCOMMAND_ADD_ZONE: &'static str = "add-zone";
 const SUBCOMMAND_REMOVE_ZONE: &'static str = "remove-zone";
 const SUBCOMMAND_QUERY_ZONE: &'static str = "query-zone";
@@ -47,6 +48,7 @@ pub enum CommandParameters {
         neg_caching: u32,
         masters: Vec<String>,
         nameservers: Vec<String>,
+        account: String,
     },
     RemoveZone {
     },
@@ -77,22 +79,23 @@ impl ApplicationConfiguration {
             Some(Command {
                 kind: CommandKind::AddZone,
                 parameters: CommandParameters::AddZone {
-                    refresh: arg_u32(&matches, PARAM_REFRESH_TIME).unwrap_or(3600),
-                    retry: arg_u32(&matches, PARAM_RETRY_TIME).unwrap_or(3600),
-                    expire: arg_u32(&matches, PARAM_EXPIRE_TIME).unwrap_or(3600),
-                    neg_caching: arg_u32(&matches, PARAM_NEG_CACHE_TIME).unwrap_or(3600),
-                    masters: arg_str_vec(&matches, PARAM_MASTER),
-                    nameservers: arg_str_vec(&matches, PARAM_NAMESERVER),
+                    refresh: arg_u32(&command, PARAM_REFRESH_TIME).unwrap_or(3600),
+                    retry: arg_u32(&command, PARAM_RETRY_TIME).unwrap_or(3600),
+                    expire: arg_u32(&command, PARAM_EXPIRE_TIME).unwrap_or(3600),
+                    neg_caching: arg_u32(&command, PARAM_NEG_CACHE_TIME).unwrap_or(3600),
+                    masters: arg_str_vec(&command, PARAM_MASTER),
+                    nameservers: arg_str_vec(&command, PARAM_NAMESERVER),
+                    account: command.value_of(PARAM_ACCOUNT).unwrap_or("root").to_string(),
                 },
             })
         } else { None };
-        let command_query_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_QUERY_ZONE) {
+        let command_query_zone = if let Some(_) = matches.subcommand_matches(SUBCOMMAND_QUERY_ZONE) {
             Some(Command {
                 kind: CommandKind::QueryZone,
                 parameters: CommandParameters::QueryZone {},
             })
         } else { None };
-        let command_remove_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_REMOVE_ZONE) {
+        let command_remove_zone = if let Some(_) = matches.subcommand_matches(SUBCOMMAND_REMOVE_ZONE) {
             Some(Command {
                 kind: CommandKind::RemoveZone,
                 parameters: CommandParameters::RemoveZone {},
@@ -214,6 +217,11 @@ pub fn parse_command_line() -> ArgMatches {
                 .required(false)
                 .takes_value(true)
                 .validator(|value| is_u32(value)))
+            .arg(Arg::new(PARAM_ACCOUNT)
+                .about("DNS admin account")
+                .long(PARAM_ACCOUNT)
+                .required(false)
+                .takes_value(true))
             .arg(Arg::new(PARAM_MASTER)
                 .about("Zone master, implies zone type slave")
                 .long(PARAM_MASTER)

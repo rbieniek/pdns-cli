@@ -29,7 +29,7 @@ impl AddZoneCommand {
 
     async fn execute_get_zone(&self, refresh: u32, retry: u32, expire: u32,
                               neg_caching: u32, masters: &Vec<String>,
-                              nameservers: &Vec<String>) -> Result<(), RestClientError> {
+                              nameservers: &Vec<String>, account: &String) -> Result<(), RestClientError> {
         let mut zone_resource_client = ZoneResourceClient::new(&self.base_uri, &self.api_key);
         let (request_tx, request_rx) = channel::<QueryZoneRequestEvent>();
         let (response_tx, response_rx) = channel::<PnsServerResponse<QueryZoneRequestEvent, Zone>>();
@@ -66,7 +66,7 @@ impl CommandExecutor for AddZoneCommand {
                              command: CommandParameters) -> Result<(), RestClientError> {
         if let CommandParameters::AddZone {
             refresh, retry, expire,
-            neg_caching, masters, nameservers
+            neg_caching, masters, nameservers, account
         } = command {
             info!("Executing command add-zone, zone {}", &self.zone_name);
 
@@ -83,7 +83,8 @@ impl CommandExecutor for AddZoneCommand {
                             info!("Received Server data event: {}", server_response);
 
                             self.execute_get_zone(refresh, retry, expire,
-                                                  neg_caching, &masters, &nameservers).await
+                                                  neg_caching, &masters, &nameservers,
+                                                  &account).await
                         }
                         Ok(_) => Err(RestClientError::on_unspecified_error()),
                         Err(error) => Err(error),
