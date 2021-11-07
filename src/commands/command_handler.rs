@@ -18,12 +18,12 @@ pub(crate) trait CommandExecutor {
 }
 
 impl CommandHandler {
-    pub fn new(base_uri: &String, api_key: &String) -> CommandHandler {
+    pub fn new(base_uri: &String, api_key: &String, zone_name: &String) -> CommandHandler {
         let mut executors: HashMap<CommandKind, Box<dyn CommandExecutor>> = HashMap::new();
 
-        executors.insert(CommandKind::AddZone, Box::new(AddZoneCommand::new(&base_uri, &api_key)));
-        executors.insert(CommandKind::QueryZone, Box::new(QueryZoneCommand::new(&base_uri, &api_key)));
-        executors.insert(CommandKind::RemoveZone, Box::new(RemoveZoneCommand::new(&base_uri, &api_key)));
+        executors.insert(CommandKind::AddZone, Box::new(AddZoneCommand::new(&base_uri, &api_key, zone_name)));
+        executors.insert(CommandKind::QueryZone, Box::new(QueryZoneCommand::new(&base_uri, &api_key, zone_name)));
+        executors.insert(CommandKind::RemoveZone, Box::new(RemoveZoneCommand::new(&base_uri, &api_key, zone_name)));
 
         CommandHandler {
             executors,

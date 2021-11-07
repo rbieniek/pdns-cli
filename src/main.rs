@@ -21,7 +21,7 @@ async fn main() {
             info!("Using base URI {}", app_config.base_uri().clone());
 
             let command_handler = CommandHandler::new(&app_config.base_uri(),
-                                                      &app_config.api_key());
+                                                      &app_config.api_key(), &app_config.zone_name());
             let result = command_handler.execute_command(app_config.command());
 
             match result.await {

@@ -12,6 +12,7 @@ pub enum AppConfigErrorKind {
     MalformedBaseUri { base_uri: String, parser_error: String },
     InvalidUriPart { base_uri: String, uri_part: UriPart },
     MalformedZoneName { zone_name: String, reason: String },
+    MalformedNumber { number: String },
     MissingCommand,
 }
 
@@ -53,6 +54,12 @@ impl AppConfigError {
         }
     }
 
+    pub fn on_malformed_number(number: &String) -> AppConfigError {
+        AppConfigError {
+            kind: AppConfigErrorKind::on_malformed_number(number)
+        }
+    }
+
     fn __description(&self) -> String {
         match &self.kind {
             AppConfigErrorKind::MalformedBaseUri {
@@ -68,6 +75,7 @@ impl AppConfigError {
                 reason,
             } => format!("Malformed zone name {}: {}", zone_name, reason),
             AppConfigErrorKind::MissingCommand => format!("Command missing"),
+            AppConfigErrorKind::MalformedNumber { number} => format!("Malformed number: {}", number),
         }
     }
 }
@@ -97,6 +105,12 @@ impl AppConfigErrorKind {
         AppConfigErrorKind::MalformedZoneName {
             zone_name: _zone_name.clone(),
             reason: _reason.clone(),
+        }
+    }
+
+    fn on_malformed_number(number: &String) -> AppConfigErrorKind {
+        AppConfigErrorKind::MalformedNumber {
+            number: number.clone(),
         }
     }
 }

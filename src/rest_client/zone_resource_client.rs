@@ -3,7 +3,6 @@ use std::sync::Arc;
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
-use crate::pdns::struct_type::StructType;
 use crate::pdns::zone::{NewZone, Zone, Rrset};
 use crate::rest_client::client_request_builder::ClientRequestBuilder;
 use crate::rest_client::pdns_resource_client::{PnsServerResponse, PowerDnsRestClient};
@@ -19,6 +18,12 @@ pub struct QueryZoneRequestEvent {
 
 pub struct CreateZoneRequestEvent {
     zone_name: String,
+    refresh: u32,
+    retry: u32,
+    expire: u32,
+    neg_caching: u32,
+    masters: Vec<String>,
+    nameservers: Vec<String>,
 }
 
 impl ZoneResourceClient {

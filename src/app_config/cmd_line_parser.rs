@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgGroup, ArgMatches};
 use fancy_regex::Regex;
 use log::LevelFilter;
 use uriparse::{Scheme, URI};
@@ -12,15 +12,23 @@ const PARAM_API_KEY: &'static str = "api-key";
 const PARAM_ZONE_NAME: &'static str = "zone-name";
 const PARAM_IGNORE_EXISTING: &'static str = "ignore-existing";
 const PARAM_VERBOSITY: &'static str = "verbose";
+const PARAM_REFRESH_TIME: &'static str = "refresh-time";
+const PARAM_RETRY_TIME: &'static str = "retry-time";
+const PARAM_EXPIRE_TIME: &'static str = "expire-time";
+const PARAM_NEG_CACHE_TIME: &'static str = "negative-cache-time";
+const PARAM_NAMESERVER: &'static str = "nameserver";
+const PARAM_MASTER: &'static str = "master";
 const SUBCOMMAND_ADD_ZONE: &'static str = "add-zone";
 const SUBCOMMAND_REMOVE_ZONE: &'static str = "remove-zone";
 const SUBCOMMAND_QUERY_ZONE: &'static str = "query-zone";
+const GROUP_NAMESERVER_OR_MASTER: &'static str = "nameserver-or-master";
 
 
 pub struct ApplicationConfiguration {
     base_uri: String,
     api_key: String,
     log_level: LevelFilter,
+    zone_name: String,
     command: Command,
 }
 
@@ -33,14 +41,16 @@ pub struct Command {
 #[derive(Hash, Debug, PartialEq, Eq, Clone)]
 pub enum CommandParameters {
     AddZone {
-        zone_name: String,
-        ignore_existing: bool,
+        refresh: u32,
+        retry: u32,
+        expire: u32,
+        neg_caching: u32,
+        masters: Vec<String>,
+        nameservers: Vec<String>,
     },
     RemoveZone {
-        zone_name: String,
     },
     QueryZone {
-        zone_name: String,
     },
 }
 
@@ -67,30 +77,31 @@ impl ApplicationConfiguration {
             Some(Command {
                 kind: CommandKind::AddZone,
                 parameters: CommandParameters::AddZone {
-                    zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
-                    ignore_existing: command.is_present(PARAM_IGNORE_EXISTING),
+                    refresh: arg_u32(&matches, PARAM_REFRESH_TIME).unwrap_or(3600),
+                    retry: arg_u32(&matches, PARAM_RETRY_TIME).unwrap_or(3600),
+                    expire: arg_u32(&matches, PARAM_EXPIRE_TIME).unwrap_or(3600),
+                    neg_caching: arg_u32(&matches, PARAM_NEG_CACHE_TIME).unwrap_or(3600),
+                    masters: arg_str_vec(&matches, PARAM_MASTER),
+                    nameservers: arg_str_vec(&matches, PARAM_NAMESERVER),
                 },
             })
         } else { None };
         let command_query_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_QUERY_ZONE) {
             Some(Command {
                 kind: CommandKind::QueryZone,
-                parameters: CommandParameters::QueryZone {
-                    zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
-                },
+                parameters: CommandParameters::QueryZone {},
             })
         } else { None };
         let command_remove_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_REMOVE_ZONE) {
             Some(Command {
                 kind: CommandKind::RemoveZone,
-                parameters: CommandParameters::RemoveZone {
-                    zone_name: command.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
-                },
+                parameters: CommandParameters::RemoveZone {},
             })
         } else { None };
 
         match command_add_zone.or(command_query_zone).or(command_remove_zone) {
             Some(command) => Ok(ApplicationConfiguration {
+                zone_name: matches.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
                 base_uri: matches.value_of(PARAM_BASE_URI).unwrap().to_string(),
                 api_key: matches.value_of(PARAM_API_KEY).unwrap().to_string(),
                 log_level: level,
@@ -108,6 +119,10 @@ impl ApplicationConfiguration {
 
     pub fn api_key(&self) -> String {
         self.api_key.clone()
+    }
+
+    pub fn zone_name(&self) -> String {
+        self.zone_name.clone()
     }
 
     pub fn command(&self) -> Command {
@@ -161,39 +176,64 @@ pub fn parse_command_line() -> ArgMatches {
                 .short('v')
                 .multiple_occurrences(true)
         )
+        .arg(Arg::new(PARAM_ZONE_NAME)
+            .about("Zone name")
+            .long(PARAM_ZONE_NAME)
+            .short('n')
+            .takes_value(true)
+            .required(true)
+            .validator(|value| verify_zone_name(value)))
         .subcommand(App::new(SUBCOMMAND_ADD_ZONE)
             .about("Add zone to PowerDNS instance")
-            .arg(Arg::new(PARAM_ZONE_NAME)
-                .about("Zone name")
-                .long(PARAM_ZONE_NAME)
-                .short('n')
-                .takes_value(true)
+            .group(ArgGroup::new(GROUP_NAMESERVER_OR_MASTER)
                 .required(true)
-                .validator(|value| verify_zone_name(value)))
-            .arg(Arg::new(PARAM_IGNORE_EXISTING)
-                .about("Ignore existing zone")
-                .long(PARAM_IGNORE_EXISTING)
-                .short('e')
+                .multiple(true)
+                .arg(PARAM_MASTER)
+                .arg(PARAM_NAMESERVER))
+            .arg(Arg::new(PARAM_REFRESH_TIME)
+                .about("Refresh time")
+                .long(PARAM_REFRESH_TIME)
                 .required(false)
-                .takes_value(false)))
+                .takes_value(true)
+                .validator(|value| is_u32(value)))
+            .arg(Arg::new(PARAM_RETRY_TIME)
+                .about("Refresh time")
+                .long(PARAM_RETRY_TIME)
+                .required(false)
+                .takes_value(true)
+                .validator(|value| is_u32(value)))
+            .arg(Arg::new(PARAM_EXPIRE_TIME)
+                .about("Refresh time")
+                .long(PARAM_EXPIRE_TIME)
+                .required(false)
+                .takes_value(true)
+                .validator(|value| is_u32(value)))
+            .arg(Arg::new(PARAM_NEG_CACHE_TIME)
+                .about("Refresh time")
+                .long(PARAM_NEG_CACHE_TIME)
+                .required(false)
+                .takes_value(true)
+                .validator(|value| is_u32(value)))
+            .arg(Arg::new(PARAM_MASTER)
+                .about("Zone master, implies zone type slave")
+                .long(PARAM_MASTER)
+                .short('m')
+                .required(false)
+                .takes_value(true)
+                .conflicts_with(PARAM_NAMESERVER)
+                .multiple_occurrences(true))
+            .arg(Arg::new(PARAM_NAMESERVER)
+                .about("Zone master, implies zone type master")
+                .long(PARAM_NAMESERVER)
+                .short('n')
+                .required(false)
+                .takes_value(true)
+                .conflicts_with(PARAM_MASTER)
+                .multiple_occurrences(true)))
         .subcommand(App::new(SUBCOMMAND_QUERY_ZONE)
-            .about("Add zone to PowerDNS instance")
-            .arg(Arg::new(PARAM_ZONE_NAME)
-                .about("Zone name")
-                .long(PARAM_ZONE_NAME)
-                .short('n')
-                .takes_value(true)
-                .required(true)
-                .validator(|value| verify_zone_name(value))))
+            .about("Add zone to PowerDNS instance"))
         .subcommand(App::new(SUBCOMMAND_REMOVE_ZONE)
-            .about("Add zone to PowerDNS instance")
-            .arg(Arg::new(PARAM_ZONE_NAME)
-                .about("Zone name")
-                .long(PARAM_ZONE_NAME)
-                .short('n')
-                .takes_value(true)
-                .required(true)
-                .validator(|value| verify_zone_name(value))))
+            .about("Add zone to PowerDNS instance"))
         .get_matches()
 }
 
@@ -247,6 +287,39 @@ fn verify_zone_name(value: &str) -> Result<(), AppConfigError> {
             false => Err(AppConfigError::on_malformed_zone_name(&value.to_string(), &"".to_string())),
         },
         Err(error) => Err(AppConfigError::on_malformed_zone_name(&value.to_string(), &error.to_string())),
+    }
+}
+
+fn arg_u32(command: &ArgMatches, name: &'static str) -> Option<u32> {
+    match command.value_of(name) {
+        Some(value) => match value.parse::<u32>() {
+            Ok(number) if number > 0 => Some(number),
+            Ok(_) => None,
+            Err(_) => None,
+        }
+        None => None,
+    }
+}
+
+fn is_u32(value: &str) -> Result<(), AppConfigError> {
+    match value.parse::<u32>() {
+        Ok(number) if number > 0 => Ok(()),
+        _ => Err(AppConfigError::on_malformed_number(&value.to_string())),
+    }
+}
+
+fn arg_str_vec(command: &ArgMatches, name: &'static str) -> Vec<String> {
+    match command.values_of(name) {
+        Some(values) => {
+            let mut args: Vec<String> = Vec::new();
+
+            for value in values.into_iter() {
+                args.push(value.to_string())
+            }
+
+            args
+        }
+        None => Vec::new(),
     }
 }
 

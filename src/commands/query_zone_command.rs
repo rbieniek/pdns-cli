@@ -7,13 +7,15 @@ use crate::rest_client::errors::RestClientError;
 pub struct QueryZoneCommand {
     base_uri: String,
     api_key: String,
+    zone_name: String,
 }
 
 impl QueryZoneCommand {
-    pub fn new(base_uri: &String, api_key: &String) -> QueryZoneCommand {
+    pub fn new(base_uri: &String, api_key: &String, zone_name: &String) -> QueryZoneCommand {
         QueryZoneCommand {
             base_uri: base_uri.clone(),
             api_key: api_key.clone(),
+            zone_name: zone_name.clone(),
         }
     }
 }
@@ -21,8 +23,8 @@ impl QueryZoneCommand {
 #[async_trait]
 impl CommandExecutor for QueryZoneCommand {
     async fn execute_command(&self, parameters: CommandParameters) -> Result<(), RestClientError> {
-        if let CommandParameters::RemoveZone { zone_name } = parameters {
-            info!("Executing command remove-zone, zone {}", &zone_name);
+        if let CommandParameters::RemoveZone { } = parameters {
+            info!("Executing command remove-zone, zone {}", &self.zone_name);
 
             Ok(())
         } else {
