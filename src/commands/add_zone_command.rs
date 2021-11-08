@@ -5,12 +5,12 @@ use tokio::sync::oneshot::channel;
 
 use crate::app_config::cmd_line_parser::CommandParameters;
 use crate::commands::command_handler::CommandExecutor;
-use crate::pdns::server::DaemonType;
+use crate::pdns::server::{DaemonType, Server};
 use crate::pdns::zone::Zone;
 use crate::rest_client::errors::{RestClientError, RestClientErrorKind};
 use crate::rest_client::pdns_resource_client::PnsServerResponse;
-use crate::rest_client::server_resource_client::{GetServerRequestEvent, GetServerResponseEvent, ServerResourceClient};
-use crate::rest_client::zone_resource_client::{QueryZoneRequestEvent, ZoneResourceClient, CreateZoneRequestEvent};
+use crate::rest_client::server_resource_client::{QueryServerRequestEvent, ServerResourceClient};
+use crate::rest_client::zone_resource_client::{CreateZoneRequestEvent, QueryZoneRequestEvent, ZoneResourceClient};
 
 pub struct AddZoneCommand {
     base_uri: String,
@@ -98,27 +98,27 @@ impl CommandExecutor for AddZoneCommand {
         } = command {
             info!("Executing command add-zone, zone {}", &self.zone_name);
 
-            let mut server_resource_client = ServerResourceClient::new();
-            let (response_event_tx, response_event_rx) = channel::<GetServerResponseEvent>();
-            let request_event_tx = server_resource_client.create_channel();
+            let mut server_resource_client = ServerResourceClient::new(&self.base_uri, &self.api_key);
+            let (request_tx, request_rx) = channel::<QueryServerRequestEvent>();
+            let (response_tx, response_rx) = channel::<PnsServerResponse<QueryServerRequestEvent, Server>>();
 
-            match request_event_tx.send(GetServerRequestEvent::new(self.base_uri.clone(),
-                                                                   self.api_key.clone(),
-                                                                   response_event_tx)) {
-                Ok(()) => match response_event_rx.await {
-                    Ok(response) => match response.result() {
-                        Ok(server_response) if server_response.daemon_type() == DaemonType::Authoritative => {
-                            info!("Received Server data event: {}", server_response);
+            server_resource_client.spawn_query(request_rx, response_tx);
+
+            match request_tx.send(QueryServerRequestEvent::new()) {
+                Ok(()) => match response_rx.await {
+                    Ok(response_container) => match response_container.response() {
+                        Ok(server) if server.daemon_type() == DaemonType::Authoritative => {
+                            info!("Received Server data event: {}", server);
 
                             self.execute_get_zone(refresh, retry, expire,
                                                   neg_caching, &masters, &nameservers,
                                                   &account).await
                         }
                         Ok(_) => Err(RestClientError::on_unspecified_error()),
-                        Err(error) => Err(error),
+                        Err(error) => Err(error.clone()),
                     },
                     Err(error) => Err(RestClientError::on_tokio_runtime_error(error.to_string())),
-                },
+                }
                 Err(_) => Err(RestClientError::on_unspecified_error()),
             }
         } else {
