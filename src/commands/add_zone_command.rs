@@ -45,7 +45,7 @@ impl AddZoneCommand {
                         Ok(())
                     }
                     Err(error) => match error.kind() {
-                        RestClientErrorKind::PowerDnsServerError { status_code, server_error } if status_code == StatusCode::NOT_FOUND => {
+                        RestClientErrorKind::PowerDnsServerError { status_code, server_error: _ } if status_code == StatusCode::NOT_FOUND => {
                             info!("Existing zone not found");
 
                             self.execute_create_zone(refresh, retry, expire, neg_caching,

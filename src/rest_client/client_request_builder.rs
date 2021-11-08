@@ -42,4 +42,18 @@ impl ClientRequestBuilder {
 
         client.post(request_uri).headers(headers)
     }
+
+    pub fn delete_for_path(&self, path: &str) -> RequestBuilder {
+        let client = Client::new();
+        let mut headers = HeaderMap::new();
+        let mut request_uri = self.base_uri.clone();
+
+        request_uri.push_str(path);
+        headers.append(HeaderName::from_static("x-api-key"),
+                       HeaderValue::from_str(&self.api_key.clone().as_str()).unwrap());
+        headers.append(ACCEPT, HeaderValue::from_static("application/json"));
+        headers.append(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+
+        client.delete(request_uri).headers(headers)
+    }
 }

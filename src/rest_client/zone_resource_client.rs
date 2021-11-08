@@ -28,6 +28,10 @@ pub struct CreateZoneRequestEvent {
     account: String,
 }
 
+pub struct RemoveZoneRequestEvent {
+    zone_name: String,
+}
+
 impl ZoneResourceClient {
     pub fn new(base_uri: &String, api_key: &String) -> ZoneResourceClient {
         ZoneResourceClient {
@@ -48,6 +52,14 @@ impl ZoneResourceClient {
                         request_rx: Receiver<CreateZoneRequestEvent>,
                         response_tx: Sender<PnsServerResponse<CreateZoneRequestEvent, Zone>>) {
         self.join_handles.push(tokio::spawn(handle_create_zone_request(self.pdns_resource_client.clone(),
+                                                                       request_rx,
+                                                                       response_tx)));
+    }
+
+    pub fn spawn_remove(&mut self,
+                        request_rx: Receiver<RemoveZoneRequestEvent>,
+                        response_tx: Sender<PnsServerResponse<RemoveZoneRequestEvent, ()>>) {
+        self.join_handles.push(tokio::spawn(handle_remove_zone_request(self.pdns_resource_client.clone(),
                                                                        request_rx,
                                                                        response_tx)));
     }
@@ -77,6 +89,14 @@ impl CreateZoneRequestEvent {
     }
 }
 
+impl RemoveZoneRequestEvent {
+    pub fn new(zone_name: &String) -> RemoveZoneRequestEvent {
+        RemoveZoneRequestEvent {
+            zone_name: zone_name.clone(),
+        }
+    }
+}
+
 impl Drop for ZoneResourceClient {
     fn drop(&mut self) {
         for handle in self.join_handles.iter() {
@@ -102,17 +122,32 @@ async fn handle_create_zone_request(pdns_resource_client: Arc<PowerDnsRestClient
         .handle_post_request::<CreateZoneRequestEvent,
             Zone, NewZone>(request_rx,
                            response_tx,
-                           post_zone_request,
+                           create_zone_request_path,
                            create_zone_body_provider).await
+}
+
+
+async fn handle_remove_zone_request(pdns_resource_client: Arc<PowerDnsRestClient>,
+                                    request_rx: Receiver<RemoveZoneRequestEvent>,
+                                    response_tx: Sender<PnsServerResponse<RemoveZoneRequestEvent, ()>>) {
+    pdns_resource_client
+        .handle_delete_request::<RemoveZoneRequestEvent>(request_rx,
+                                                         response_tx,
+                                                         remove_zone_request_path).await
 }
 
 fn get_zone_request_path(request: &QueryZoneRequestEvent) -> String {
     format!("servers/localhost/zones/{}", &request.zone_name)
 }
 
-fn post_zone_request(_request: &CreateZoneRequestEvent) -> String {
+fn create_zone_request_path(_request: &CreateZoneRequestEvent) -> String {
     "servers/localhost/zones".to_string()
 }
+
+fn remove_zone_request_path(request: &RemoveZoneRequestEvent) -> String {
+    format!("servers/localhost/zones/{}", &request.zone_name)
+}
+
 
 fn create_zone_body_provider(request: &CreateZoneRequestEvent) -> NewZone {
     let mut rrsets: Vec<Rrset> = Vec::new();

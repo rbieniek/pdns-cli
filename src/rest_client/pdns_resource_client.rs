@@ -123,10 +123,10 @@ impl PowerDnsRestClient {
 
                 request_path.push_str(req_path_provider(&request_event).as_str());
 
-                info!("Executing GET request to resource {}", &request_path);
+                info!("Executing DELETE request to resource {}", &request_path);
 
                 let result: Result<(), RestClientError> = match self.request_builder
-                    .get_for_path(request_path.as_str())
+                    .delete_for_path(request_path.as_str())
                     .send()
                     .await {
                     Ok(rest_response) if is_success(rest_response.status()) => Ok(()),

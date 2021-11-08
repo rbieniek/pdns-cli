@@ -1,14 +1,10 @@
 use std::sync::Arc;
 
-use log::{info, warn};
-use reqwest::StatusCode;
-use tokio::sync::oneshot::{channel, Receiver, Sender};
+use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
 use crate::pdns::server::Server;
 use crate::rest_client::client_request_builder::ClientRequestBuilder;
-use crate::rest_client::errors::RestClientError;
-use crate::rest_client::lifecycle::Disposeable;
 use crate::rest_client::pdns_resource_client::{PnsServerResponse, PowerDnsRestClient};
 
 pub struct ServerResourceClient {
@@ -58,6 +54,6 @@ async fn handle_get_request(pdns_resource_client: Arc<PowerDnsRestClient>,
                                                                get_server_request_path).await
 }
 
-fn get_server_request_path(request: &QueryServerRequestEvent) -> String {
+fn get_server_request_path(_request: &QueryServerRequestEvent) -> String {
     "servers/localhost".to_string()
 }
