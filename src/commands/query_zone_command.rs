@@ -50,7 +50,7 @@ impl QueryZoneCommand {
         let (request_tx, request_rx) = channel::<QueryZoneRequestEvent>();
         let (response_tx, response_rx) = channel::<PnsServerResponse<QueryZoneRequestEvent, Zone>>();
 
-        zone_resource_client.spawn_query(request_rx, response_tx);
+        zone_resource_client.spawn_query_zone(request_rx, response_tx);
 
         match request_tx.send(QueryZoneRequestEvent::new(&self.zone_name)) {
             Ok(()) => match response_rx.await {

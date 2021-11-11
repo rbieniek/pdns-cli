@@ -33,9 +33,14 @@ const PARAM_NAMESERVER: &'static str = "nameserver";
 const PARAM_MASTER: &'static str = "master";
 const PARAM_ACCOUNT: &'static str = "account";
 const PARAM_OUTPUT_FILE: &'static str = "output-file";
+const PARAM_RECORD_KEY: &'static str = "key";
+const PARAM_RECORD_VALUE: &'static str = "value";
+const PARAM_RECORD_TYPE: &'static str = "type";
+const PARAM_TIME_TO_LIVE: &'static str = "time-to-live";
 const SUBCOMMAND_ADD_ZONE: &'static str = "add-zone";
 const SUBCOMMAND_REMOVE_ZONE: &'static str = "remove-zone";
 const SUBCOMMAND_QUERY_ZONE: &'static str = "query-zone";
+const SUBCOMMAND_ADD_ENTRY: &'static str = "add-entry";
 const GROUP_NAMESERVER_OR_MASTER: &'static str = "nameserver-or-master";
 
 
@@ -64,10 +69,15 @@ pub enum CommandParameters {
         nameservers: Vec<String>,
         account: String,
     },
-    RemoveZone {
-    },
+    RemoveZone {},
     QueryZone {
         output_file: Option<String>,
+    },
+    AddEntry {
+        record_key: String,
+        record_value: Vec<String>,
+        record_type: String,
+        time_to_live: u32,
     },
 }
 
@@ -76,6 +86,7 @@ pub enum CommandKind {
     AddZone,
     RemoveZone,
     QueryZone,
+    AddEntry,
 }
 
 impl ApplicationConfiguration {
@@ -122,7 +133,22 @@ impl ApplicationConfiguration {
             })
         } else { None };
 
-        match command_add_zone.or(command_query_zone).or(command_remove_zone) {
+        let command_add_entry = if let Some(_) = matches.subcommand_matches(SUBCOMMAND_ADD_ENTRY) {
+            Some(Command {
+                kind: CommandKind::AddZone,
+                parameters: CommandParameters::AddEntry {
+                    record_key: matches.value_of(PARAM_RECORD_KEY).unwrap().to_string(),
+                    record_type: matches.value_of(PARAM_RECORD_VALUE).unwrap().to_string(),
+                    record_value: arg_str_vec(&command, PARAM_RECORD_VALUE),
+                    time_to_live: arg_u32(&command, PARAM_TIME_TO_LIVE).unwrap_or(3600),
+                },
+            })
+        } else { None };
+
+        match command_add_zone
+            .or(command_query_zone)
+            .or(command_remove_zone)
+            .or(command_add_entry) {
             Some(command) => Ok(ApplicationConfiguration {
                 zone_name: matches.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
                 base_uri: matches.value_of(PARAM_BASE_URI).unwrap().to_string(),
@@ -267,7 +293,36 @@ pub fn parse_command_line() -> ArgMatches {
                 .required(false)
                 .takes_value(true)))
         .subcommand(App::new(SUBCOMMAND_REMOVE_ZONE)
-            .about("Add zone to PowerDNS instance"))
+            .about("Remove zone to PowerDNS instance"))
+        .subcommand(App::new(SUBCOMMAND_ADD_ENTRY)
+            .about("Add entry to PowerDNS zone")
+            .arg(Arg::new(PARAM_RECORD_KEY)
+                .about("Record key")
+                .long(PARAM_RECORD_KEY)
+                .short('k')
+                .required(true)
+                .takes_value(true))
+            .arg(Arg::new(PARAM_RECORD_VALUE)
+                .about("Output file name")
+                .long(PARAM_RECORD_VALUE)
+                .short('v')
+                .required(true)
+                .takes_value(true)
+                .multiple_occurrences(true))
+            .arg(Arg::new(PARAM_RECORD_TYPE)
+                .about("Record type")
+                .long(PARAM_RECORD_KEY)
+                .short('t')
+                .required(true)
+                .takes_value(true)
+                .validator(|value| is_valid_record_type(value)))
+            .arg(Arg::new(PARAM_TIME_TO_LIVE)
+                .about("Record type")
+                .long(PARAM_TIME_TO_LIVE)
+                .short('l')
+                .required(false)
+                .takes_value(true)
+                .validator(|value| is_u32(value))))
         .get_matches()
 }
 
@@ -354,6 +409,18 @@ fn arg_str_vec(command: &ArgMatches, name: &'static str) -> Vec<String> {
             args
         }
         None => Vec::new(),
+    }
+}
+
+fn is_valid_record_type(value: &str) -> Result<(), AppConfigError> {
+    match value {
+        "A" => Ok(()),
+        "AAAA" => Ok(()),
+        "PTR" => Ok(()),
+        "CNAME" => Ok(()),
+        "SRV" => Ok(()),
+        "TXT" => Ok(()),
+        _ => Err(AppConfigError::on_malformed_record_type(&value.to_string())),
     }
 }
 

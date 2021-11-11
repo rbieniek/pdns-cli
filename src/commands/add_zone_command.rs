@@ -47,7 +47,7 @@ impl AddZoneCommand {
         let (request_tx, request_rx) = channel::<QueryZoneRequestEvent>();
         let (response_tx, response_rx) = channel::<PnsServerResponse<QueryZoneRequestEvent, Zone>>();
 
-        zone_resource_client.spawn_query(request_rx, response_tx);
+        zone_resource_client.spawn_query_zone(request_rx, response_tx);
 
         match request_tx.send(QueryZoneRequestEvent::new(&self.zone_name)) {
             Ok(()) => match response_rx.await {
@@ -80,7 +80,7 @@ impl AddZoneCommand {
         let (request_tx, request_rx) = channel::<CreateZoneRequestEvent>();
         let (response_tx, response_rx) = channel::<PnsServerResponse<CreateZoneRequestEvent, Zone>>();
 
-        zone_resource_client.spawn_create(request_rx, response_tx);
+        zone_resource_client.spawn_create_zone(request_rx, response_tx);
 
         match request_tx.send(CreateZoneRequestEvent::new(&self.zone_name, refresh, retry,
                                                           expire, neg_caching, masters,

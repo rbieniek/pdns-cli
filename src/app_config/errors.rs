@@ -26,6 +26,7 @@ pub enum AppConfigErrorKind {
     InvalidUriPart { base_uri: String, uri_part: UriPart },
     MalformedZoneName { zone_name: String, reason: String },
     MalformedNumber { number: String },
+    MalformedRecordType { record_type: String },
     MissingCommand,
 }
 
@@ -73,6 +74,12 @@ impl AppConfigError {
         }
     }
 
+    pub fn on_malformed_record_type(record_type: &String) -> AppConfigError {
+        AppConfigError {
+            kind: AppConfigErrorKind::on_malformed_record_type(record_type)
+        }
+    }
+
     fn __description(&self) -> String {
         match &self.kind {
             AppConfigErrorKind::MalformedBaseUri {
@@ -88,7 +95,12 @@ impl AppConfigError {
                 reason,
             } => format!("Malformed zone name {}: {}", zone_name, reason),
             AppConfigErrorKind::MissingCommand => format!("Command missing"),
-            AppConfigErrorKind::MalformedNumber { number} => format!("Malformed number: {}", number),
+            AppConfigErrorKind::MalformedNumber {
+                number
+            } => format!("Malformed number: {}", number),
+            AppConfigErrorKind::MalformedRecordType {
+                record_type
+            } => format!("Malformed record type: {}", record_type),
         }
     }
 }
@@ -124,6 +136,12 @@ impl AppConfigErrorKind {
     fn on_malformed_number(number: &String) -> AppConfigErrorKind {
         AppConfigErrorKind::MalformedNumber {
             number: number.clone(),
+        }
+    }
+
+    fn on_malformed_record_type(record_type: &String) -> AppConfigErrorKind {
+        AppConfigErrorKind::MalformedRecordType {
+            record_type: record_type.clone(),
         }
     }
 }

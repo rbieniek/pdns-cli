@@ -17,7 +17,7 @@ use chrono::{DateTime, Utc};
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
-use crate::pdns::zone::{NewZone, Record, Rrset, RrsetType, Zone};
+use crate::pdns::zone::{NewZone, Record, Rrset, Rrsets, RrsetType, Zone};
 use crate::rest_client::client_request_builder::ClientRequestBuilder;
 use crate::rest_client::pdns_resource_client::{PnsServerResponse, PowerDnsRestClient};
 
@@ -45,6 +45,14 @@ pub struct RemoveZoneRequestEvent {
     zone_name: String,
 }
 
+pub struct AddEntryRequestEvent {
+    zone_name: String,
+    record_key: String,
+    record_type: String,
+    record_values: Vec<String>,
+    time_to_live: u32,
+}
+
 impl ZoneResourceClient {
     pub fn new(base_uri: &String, api_key: &String) -> ZoneResourceClient {
         ZoneResourceClient {
@@ -53,28 +61,36 @@ impl ZoneResourceClient {
         }
     }
 
-    pub fn spawn_query(&mut self,
-                       request_rx: Receiver<QueryZoneRequestEvent>,
-                       response_tx: Sender<PnsServerResponse<QueryZoneRequestEvent, Zone>>) {
+    pub fn spawn_query_zone(&mut self,
+                            request_rx: Receiver<QueryZoneRequestEvent>,
+                            response_tx: Sender<PnsServerResponse<QueryZoneRequestEvent, Zone>>) {
         self.join_handles.push(tokio::spawn(handle_get_request(self.pdns_resource_client.clone(),
                                                                request_rx,
                                                                response_tx)));
     }
 
-    pub fn spawn_create(&mut self,
-                        request_rx: Receiver<CreateZoneRequestEvent>,
-                        response_tx: Sender<PnsServerResponse<CreateZoneRequestEvent, Zone>>) {
+    pub fn spawn_create_zone(&mut self,
+                             request_rx: Receiver<CreateZoneRequestEvent>,
+                             response_tx: Sender<PnsServerResponse<CreateZoneRequestEvent, Zone>>) {
         self.join_handles.push(tokio::spawn(handle_create_zone_request(self.pdns_resource_client.clone(),
                                                                        request_rx,
                                                                        response_tx)));
     }
 
-    pub fn spawn_remove(&mut self,
-                        request_rx: Receiver<RemoveZoneRequestEvent>,
-                        response_tx: Sender<PnsServerResponse<RemoveZoneRequestEvent, ()>>) {
+    pub fn spawn_remove_zone(&mut self,
+                             request_rx: Receiver<RemoveZoneRequestEvent>,
+                             response_tx: Sender<PnsServerResponse<RemoveZoneRequestEvent, ()>>) {
         self.join_handles.push(tokio::spawn(handle_remove_zone_request(self.pdns_resource_client.clone(),
                                                                        request_rx,
                                                                        response_tx)));
+    }
+
+    pub fn spawn_add_entry(&mut self,
+                           request_rx: Receiver<AddEntryRequestEvent>,
+                           response_tx: Sender<PnsServerResponse<AddEntryRequestEvent, ()>>) {
+        self.join_handles.push(tokio::spawn(handle_add_entry_request(self.pdns_resource_client.clone(),
+                                                                     request_rx,
+                                                                     response_tx)));
     }
 }
 
@@ -139,7 +155,6 @@ async fn handle_create_zone_request(pdns_resource_client: Arc<PowerDnsRestClient
                            create_zone_body_provider).await
 }
 
-
 async fn handle_remove_zone_request(pdns_resource_client: Arc<PowerDnsRestClient>,
                                     request_rx: Receiver<RemoveZoneRequestEvent>,
                                     response_tx: Sender<PnsServerResponse<RemoveZoneRequestEvent, ()>>) {
@@ -147,6 +162,16 @@ async fn handle_remove_zone_request(pdns_resource_client: Arc<PowerDnsRestClient
         .handle_delete_request::<RemoveZoneRequestEvent>(request_rx,
                                                          response_tx,
                                                          remove_zone_request_path).await
+}
+
+async fn handle_add_entry_request(pdns_resource_client: Arc<PowerDnsRestClient>,
+                                  request_rx: Receiver<AddEntryRequestEvent>,
+                                  response_tx: Sender<PnsServerResponse<AddEntryRequestEvent, ()>>) {
+    pdns_resource_client
+        .handle_patch_request::<AddEntryRequestEvent, (), Rrsets>(request_rx,
+                                                                  response_tx,
+                                                                  add_entry_request_path,
+                                                                  add_entry_body_provider).await
 }
 
 fn get_zone_request_path(request: &QueryZoneRequestEvent) -> String {
@@ -161,6 +186,9 @@ fn remove_zone_request_path(request: &RemoveZoneRequestEvent) -> String {
     format!("servers/localhost/zones/{}", &request.zone_name)
 }
 
+fn add_entry_request_path(request: &AddEntryRequestEvent) -> String {
+    format!("servers/localhost/zones/{}", &request.zone_name)
+}
 
 fn create_zone_body_provider(request: &CreateZoneRequestEvent) -> NewZone {
     let mut rrsets: Vec<Rrset> = Vec::new();
@@ -196,6 +224,24 @@ fn create_zone_body_provider(request: &CreateZoneRequestEvent) -> NewZone {
     NewZone::new(&request.zone_name, &rrsets, &masters, &nameservers,
                  false, None, false, false,
                  None, None)
+}
+
+fn add_entry_body_provider(request: &AddEntryRequestEvent) -> Rrsets {
+    let mut rrsets: Vec<Rrset> = Vec::new();
+    let mut records: Vec<Record> = Vec::new();
+
+    for record_value in request.record_values.into_iter() {
+        records.push(Record::new(&record_value, false));
+    }
+
+    rrsets.push(Rrset::new(&request.record_key,
+                           RrsetType::A,
+                           &None,
+                           &Some(request.time_to_live),
+                           &records,
+                           &Vec::new()));
+
+    Rrsets::new(&rrsets)
 }
 
 fn canonicalize_name(name: &String) -> String {

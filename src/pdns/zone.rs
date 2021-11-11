@@ -80,6 +80,11 @@ pub struct Rrset {
     comments: Vec<Comment>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Rrsets {
+    rrsets: Vec<Rrset>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum RrsetType {
     A,
@@ -122,6 +127,12 @@ pub struct Comment {
 }
 
 impl PowerDnsPayload for Zone {}
+
+impl Zone {
+    pub fn rrsets(&self) -> Vec<Rrset> {
+        self.rrsets.clone()
+    }
+}
 
 impl NewZone {
     pub fn new(name: &String, rrsets: &Vec<Rrset>, masters: &Vec<String>,
@@ -178,6 +189,22 @@ impl Rrset {
             ttl: ttl.clone(),
             records: records.clone(),
             comments: comments.clone(),
+        }
+    }
+
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn records(&self) -> Vec<Record> {
+        self.records.clone()
+    }
+}
+
+impl Rrsets {
+    pub fn new(rrsets: &Vec<Rrset>) -> Rrsets {
+        Rrsets {
+            rrsets: rrsets.clone(),
         }
     }
 }
