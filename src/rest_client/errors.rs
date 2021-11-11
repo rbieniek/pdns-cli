@@ -1,3 +1,4 @@
+
 // Copyright 2021 Cumulus Cloud Software und Consulting GmbH & Co KG
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +25,9 @@ pub struct RestClientError {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RestClientErrorKind {
-    UnspecifiedError,
+    UnspecifiedError {
+        message: Option<String>,
+    },
     TokioRuntimeError {
         tokio_error: String,
     },
@@ -44,6 +47,12 @@ impl RestClientError {
     pub fn on_unspecified_error() -> RestClientError {
         RestClientError {
             kind: RestClientErrorKind::on_unspecified_error(),
+        }
+    }
+
+    pub fn on_unspecified_error_message(message: &String) -> RestClientError {
+        RestClientError {
+            kind: RestClientErrorKind::on_unspecified_error_message(message),
         }
     }
 
@@ -77,7 +86,9 @@ impl RestClientError {
 
     fn __description(&self) -> String {
         match &self.kind {
-            RestClientErrorKind::UnspecifiedError => format!("Unspecified error"),
+            RestClientErrorKind::UnspecifiedError {
+                message
+            }  => format!("Unspecified error: {}", &message.clone().unwrap_or("None".to_string())),
             RestClientErrorKind::TokioRuntimeError {
                 tokio_error
             } => format!("Tokio runtime error: {}", tokio_error),
@@ -105,7 +116,15 @@ impl fmt::Display for RestClientError {
 
 impl RestClientErrorKind {
     fn on_unspecified_error() -> RestClientErrorKind {
-        RestClientErrorKind::UnspecifiedError
+        RestClientErrorKind::UnspecifiedError {
+            message: None,
+        }
+    }
+
+    fn on_unspecified_error_message(message: &String) -> RestClientErrorKind {
+        RestClientErrorKind::UnspecifiedError {
+            message: Some(message.clone()),
+        }
     }
 
     fn on_tokio_runtime_error(tokio_error: String) -> RestClientErrorKind {

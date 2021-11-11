@@ -32,6 +32,7 @@ const PARAM_NEG_CACHE_TIME: &'static str = "negative-cache-time";
 const PARAM_NAMESERVER: &'static str = "nameserver";
 const PARAM_MASTER: &'static str = "master";
 const PARAM_ACCOUNT: &'static str = "account";
+const PARAM_OUTPUT_FILE: &'static str = "output-file";
 const SUBCOMMAND_ADD_ZONE: &'static str = "add-zone";
 const SUBCOMMAND_REMOVE_ZONE: &'static str = "remove-zone";
 const SUBCOMMAND_QUERY_ZONE: &'static str = "query-zone";
@@ -66,6 +67,7 @@ pub enum CommandParameters {
     RemoveZone {
     },
     QueryZone {
+        output_file: Option<String>,
     },
 }
 
@@ -102,10 +104,15 @@ impl ApplicationConfiguration {
                 },
             })
         } else { None };
-        let command_query_zone = if let Some(_) = matches.subcommand_matches(SUBCOMMAND_QUERY_ZONE) {
+        let command_query_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_QUERY_ZONE) {
             Some(Command {
                 kind: CommandKind::QueryZone,
-                parameters: CommandParameters::QueryZone {},
+                parameters: CommandParameters::QueryZone {
+                    output_file: match command.value_of(PARAM_OUTPUT_FILE) {
+                        Some(value) => Some(value.to_string()),
+                        None => None,
+                    }
+                },
             })
         } else { None };
         let command_remove_zone = if let Some(_) = matches.subcommand_matches(SUBCOMMAND_REMOVE_ZONE) {
@@ -252,7 +259,13 @@ pub fn parse_command_line() -> ArgMatches {
                 .conflicts_with(PARAM_MASTER)
                 .multiple_occurrences(true)))
         .subcommand(App::new(SUBCOMMAND_QUERY_ZONE)
-            .about("Add zone to PowerDNS instance"))
+            .about("Add zone to PowerDNS instance")
+            .arg(Arg::new(PARAM_OUTPUT_FILE)
+                .about("Output file name")
+                .long(PARAM_OUTPUT_FILE)
+                .short('o')
+                .required(false)
+                .takes_value(true)))
         .subcommand(App::new(SUBCOMMAND_REMOVE_ZONE)
             .about("Add zone to PowerDNS instance"))
         .get_matches()

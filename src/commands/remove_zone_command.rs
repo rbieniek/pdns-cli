@@ -13,7 +13,6 @@
 // limitations under the License.
 use log::info;
 use async_trait::async_trait;
-use log::info;
 use reqwest::StatusCode;
 use tokio::sync::oneshot::channel;
 

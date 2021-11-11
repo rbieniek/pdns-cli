@@ -11,12 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use log::{info, warn};
-use reqwest::StatusCode;
-use tokio::sync::oneshot::{channel, Receiver, Sender};
+use tokio::sync::oneshot::{Receiver, Sender};
 use std::sync::Arc;
 
-use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
 use crate::pdns::server::Server;
