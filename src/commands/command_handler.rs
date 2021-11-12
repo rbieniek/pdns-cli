@@ -20,6 +20,7 @@ use crate::commands::add_zone_command::AddZoneCommand;
 use crate::rest_client::errors::RestClientError;
 use crate::commands::query_zone_command::QueryZoneCommand;
 use crate::commands::remove_zone_command::RemoveZoneCommand;
+use crate::commands::add_entry_command::AddEntryCommand;
 
 pub struct CommandHandler {
     executors: HashMap<CommandKind, Box<dyn CommandExecutor>>,
@@ -37,6 +38,7 @@ impl CommandHandler {
         executors.insert(CommandKind::AddZone, Box::new(AddZoneCommand::new(&base_uri, &api_key, zone_name)));
         executors.insert(CommandKind::QueryZone, Box::new(QueryZoneCommand::new(&base_uri, &api_key, zone_name)));
         executors.insert(CommandKind::RemoveZone, Box::new(RemoveZoneCommand::new(&base_uri, &api_key, zone_name)));
+        executors.insert(CommandKind::AddEntry, Box::new(AddEntryCommand::new(&base_uri, &api_key, zone_name)));
 
         CommandHandler {
             executors,
@@ -51,7 +53,7 @@ impl CommandHandler {
                 Ok(()) => Ok(()),
                 Err(error) => Err(error),
             },
-            None => Err(RestClientError::on_unspecified_error()),
+            None => Err(RestClientError::on_unspecified_error_message(&format!("Unknown operation: {}", command.kind()))),
         }
     }
 }

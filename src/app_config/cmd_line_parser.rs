@@ -19,6 +19,7 @@ use log::LevelFilter;
 use uriparse::{Scheme, URI};
 
 use crate::app_config::errors::{AppConfigError, UriPart};
+use std::fmt::{Display, Formatter};
 
 const PARAM_BASE_URI: &'static str = "base-uri";
 const PARAM_API_KEY: &'static str = "api-key";
@@ -40,7 +41,7 @@ const PARAM_TIME_TO_LIVE: &'static str = "time-to-live";
 const SUBCOMMAND_ADD_ZONE: &'static str = "add-zone";
 const SUBCOMMAND_REMOVE_ZONE: &'static str = "remove-zone";
 const SUBCOMMAND_QUERY_ZONE: &'static str = "query-zone";
-const SUBCOMMAND_ADD_ENTRY: &'static str = "add-entry";
+const SUBCOMMAND_ADD_ENTRY: &'static str = "add-or-replace-entry";
 const GROUP_NAMESERVER_OR_MASTER: &'static str = "nameserver-or-master";
 
 
@@ -133,12 +134,12 @@ impl ApplicationConfiguration {
             })
         } else { None };
 
-        let command_add_entry = if let Some(_) = matches.subcommand_matches(SUBCOMMAND_ADD_ENTRY) {
+        let command_add_entry = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_ADD_ENTRY) {
             Some(Command {
-                kind: CommandKind::AddZone,
+                kind: CommandKind::AddEntry,
                 parameters: CommandParameters::AddEntry {
-                    record_key: matches.value_of(PARAM_RECORD_KEY).unwrap().to_string(),
-                    record_type: matches.value_of(PARAM_RECORD_VALUE).unwrap().to_string(),
+                    record_key: command.value_of(PARAM_RECORD_KEY).unwrap().to_string(),
+                    record_type: command.value_of(PARAM_RECORD_TYPE).unwrap().to_string(),
                     record_value: arg_str_vec(&command, PARAM_RECORD_VALUE),
                     time_to_live: arg_u32(&command, PARAM_TIME_TO_LIVE).unwrap_or(3600),
                 },
@@ -190,6 +191,17 @@ impl Command {
 
     pub fn parameters(&self) -> CommandParameters {
         self.parameters.clone()
+    }
+}
+
+impl Display for CommandKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CommandKind::AddEntry => write!(f, "AddEntry"),
+            CommandKind::AddZone => write!(f, "AddZone"),
+            CommandKind::QueryZone => write!(f, "QueryZone"),
+            CommandKind::RemoveZone => write!(f, "RemoveZone"),
+        }
     }
 }
 
@@ -311,7 +323,7 @@ pub fn parse_command_line() -> ArgMatches {
                 .multiple_occurrences(true))
             .arg(Arg::new(PARAM_RECORD_TYPE)
                 .about("Record type")
-                .long(PARAM_RECORD_KEY)
+                .long(PARAM_RECORD_TYPE)
                 .short('t')
                 .required(true)
                 .takes_value(true)

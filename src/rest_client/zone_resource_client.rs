@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 // Copyright 2021 Cumulus Cloud Software und Consulting GmbH & Co KG
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +15,11 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use log::info;
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
-use crate::pdns::zone::{NewZone, Record, Rrset, Rrsets, RrsetType, Zone};
+use crate::pdns::zone::{Changetype, NewZone, Record, Rrset, Rrsets, RrsetType, Zone};
 use crate::rest_client::client_request_builder::ClientRequestBuilder;
 use crate::rest_client::pdns_resource_client::{PnsServerResponse, PowerDnsRestClient};
 
@@ -126,6 +128,27 @@ impl RemoveZoneRequestEvent {
     }
 }
 
+impl AddEntryRequestEvent {
+    pub fn new(zone_name: &String, record_key: &String, record_type: &String,
+               record_values: &Vec<String>, time_to_live: u32) -> AddEntryRequestEvent {
+        AddEntryRequestEvent {
+            zone_name: zone_name.clone(),
+            record_key: record_key.clone(),
+            record_type: record_type.clone(),
+            record_values: record_values.clone(),
+            time_to_live,
+        }
+    }
+}
+
+impl Display for AddEntryRequestEvent {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "zone_name: {}, record_key: {}, record_type: {}, values: {}, ttl {}",
+               self.zone_name.clone(), self.record_key.clone(), self.record_type.clone(),
+               self.record_values.clone().join(","), self.time_to_live)
+    }
+}
+
 impl Drop for ZoneResourceClient {
     fn drop(&mut self) {
         for handle in self.join_handles.iter() {
@@ -168,10 +191,10 @@ async fn handle_add_entry_request(pdns_resource_client: Arc<PowerDnsRestClient>,
                                   request_rx: Receiver<AddEntryRequestEvent>,
                                   response_tx: Sender<PnsServerResponse<AddEntryRequestEvent, ()>>) {
     pdns_resource_client
-        .handle_patch_request::<AddEntryRequestEvent, (), Rrsets>(request_rx,
-                                                                  response_tx,
-                                                                  add_entry_request_path,
-                                                                  add_entry_body_provider).await
+        .handle_patch_request::<AddEntryRequestEvent, Rrsets>(request_rx,
+                                                              response_tx,
+                                                              add_entry_request_path,
+                                                              add_entry_body_provider).await
 }
 
 fn get_zone_request_path(request: &QueryZoneRequestEvent) -> String {
@@ -230,13 +253,15 @@ fn add_entry_body_provider(request: &AddEntryRequestEvent) -> Rrsets {
     let mut rrsets: Vec<Rrset> = Vec::new();
     let mut records: Vec<Record> = Vec::new();
 
-    for record_value in request.record_values.into_iter() {
+    info!("create body for add-entry request: {}", request);
+
+    for record_value in request.record_values.iter() {
         records.push(Record::new(&record_value, false));
     }
 
     rrsets.push(Rrset::new(&request.record_key,
-                           RrsetType::A,
-                           &None,
+                           map_record_type(&request.record_type).unwrap(),
+                           &Some(Changetype::Replace),
                            &Some(request.time_to_live),
                            &records,
                            &Vec::new()));
@@ -249,5 +274,19 @@ fn canonicalize_name(name: &String) -> String {
         format!("{}.", name)
     } else {
         name.clone()
+    }
+}
+
+fn map_record_type(record_type: &String) -> Option<RrsetType> {
+    match record_type.as_str() {
+        "A" => Some(RrsetType::A),
+        "SOA" => Some(RrsetType::Soa),
+        "NS" => Some(RrsetType::Ns),
+        "PTR" => Some(RrsetType::Ptr),
+        "TXT" => Some(RrsetType::Txt),
+        "SRV" => Some(RrsetType::Srv),
+        "CNAME" => Some(RrsetType::Cname),
+        "AAAA" => Some(RrsetType::Aaaa),
+        _ => None,
     }
 }

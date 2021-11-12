@@ -163,12 +163,12 @@ impl PowerDnsRestClient {
         }
     }
 
-    pub async fn handle_patch_request<I, O, T>(&self,
+    pub async fn handle_patch_request<I, T>(&self,
                                               request_rx: Receiver<I>,
-                                              response_tx: Sender<PnsServerResponse<I, O>>,
+                                              response_tx: Sender<PnsServerResponse<I, ()>>,
                                               req_path_provider: PathProvider<I>,
                                               body_provider: BodyProvider<I, T>,
-    ) where O: DeserializeOwned, T: Serialize {
+    ) where T: Serialize {
         match request_rx.await {
             Ok(request_event) => {
                 let mut request_path = "api/v1/".to_string();
@@ -176,19 +176,16 @@ impl PowerDnsRestClient {
 
                 request_path.push_str(req_path_provider(&request_event).as_str());
 
-                info!("Executing POST request to resource {} with payload {}",
+                info!("Executing PATCH request to resource {} with payload {}",
                     &request_path,
                     serde_json::to_string(&payload).unwrap());
 
-                let result: Result<O, RestClientError> = match self.request_builder
+                let result: Result<(), RestClientError> = match self.request_builder
                     .patch_for_path(request_path.as_str())
                     .json(&payload)
                     .send()
                     .await {
-                    Ok(rest_response) if is_success(rest_response.status()) => match rest_response.json::<O>().await {
-                        Ok(server_response) => Ok(server_response),
-                        Err(rest_err) => Err(RestClientError::on_reqwest_runtime_error(rest_err.to_string())),
-                    },
+                    Ok(rest_response) if is_success(rest_response.status()) => Ok(()),
                     Ok(rest_response) if is_known_error(rest_response.status()) => {
                         let status_code = rest_response.status();
 
