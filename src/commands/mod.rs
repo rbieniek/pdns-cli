@@ -16,3 +16,4 @@ mod add_zone_command;
 mod query_zone_command;
 mod remove_zone_command;
 mod add_entry_command;
+mod remove_entry_command;

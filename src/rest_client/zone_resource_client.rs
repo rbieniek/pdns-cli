@@ -55,6 +55,12 @@ pub struct AddEntryRequestEvent {
     time_to_live: u32,
 }
 
+pub struct RemoveEntryRequestEvent {
+    zone_name: String,
+    record_key: String,
+    record_type: String,
+}
+
 impl ZoneResourceClient {
     pub fn new(base_uri: &String, api_key: &String) -> ZoneResourceClient {
         ZoneResourceClient {
@@ -91,6 +97,14 @@ impl ZoneResourceClient {
                            request_rx: Receiver<AddEntryRequestEvent>,
                            response_tx: Sender<PnsServerResponse<AddEntryRequestEvent, ()>>) {
         self.join_handles.push(tokio::spawn(handle_add_entry_request(self.pdns_resource_client.clone(),
+                                                                     request_rx,
+                                                                     response_tx)));
+    }
+
+    pub fn spawn_remove_entry(&mut self,
+                           request_rx: Receiver<RemoveEntryRequestEvent>,
+                           response_tx: Sender<PnsServerResponse<RemoveEntryRequestEvent, ()>>) {
+        self.join_handles.push(tokio::spawn(handle_remove_entry_request(self.pdns_resource_client.clone(),
                                                                      request_rx,
                                                                      response_tx)));
     }
@@ -149,6 +163,24 @@ impl Display for AddEntryRequestEvent {
     }
 }
 
+
+impl RemoveEntryRequestEvent {
+    pub fn new(zone_name: &String, record_key: &String, record_type: &String) -> RemoveEntryRequestEvent {
+        RemoveEntryRequestEvent {
+            zone_name: zone_name.clone(),
+            record_key: record_key.clone(),
+            record_type: record_type.clone(),
+        }
+    }
+}
+
+impl Display for RemoveEntryRequestEvent {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "zone_name: {}, record_key: {}, record_type: {}",
+               self.zone_name.clone(), self.record_key.clone(), self.record_type.clone())
+    }
+}
+
 impl Drop for ZoneResourceClient {
     fn drop(&mut self) {
         for handle in self.join_handles.iter() {
@@ -197,6 +229,16 @@ async fn handle_add_entry_request(pdns_resource_client: Arc<PowerDnsRestClient>,
                                                               add_entry_body_provider).await
 }
 
+async fn handle_remove_entry_request(pdns_resource_client: Arc<PowerDnsRestClient>,
+                                  request_rx: Receiver<RemoveEntryRequestEvent>,
+                                  response_tx: Sender<PnsServerResponse<RemoveEntryRequestEvent, ()>>) {
+    pdns_resource_client
+        .handle_patch_request::<RemoveEntryRequestEvent, Rrsets>(request_rx,
+                                                              response_tx,
+                                                              remove_entry_request_path,
+                                                              remove_entry_body_provider).await
+}
+
 fn get_zone_request_path(request: &QueryZoneRequestEvent) -> String {
     format!("servers/localhost/zones/{}", &request.zone_name)
 }
@@ -210,6 +252,10 @@ fn remove_zone_request_path(request: &RemoveZoneRequestEvent) -> String {
 }
 
 fn add_entry_request_path(request: &AddEntryRequestEvent) -> String {
+    format!("servers/localhost/zones/{}", &request.zone_name)
+}
+
+fn remove_entry_request_path(request: &RemoveEntryRequestEvent) -> String {
     format!("servers/localhost/zones/{}", &request.zone_name)
 }
 
@@ -265,6 +311,22 @@ fn add_entry_body_provider(request: &AddEntryRequestEvent) -> Rrsets {
                            &Some(Changetype::Replace),
                            &Some(request.time_to_live),
                            &records,
+                           &Vec::new()));
+
+    Rrsets::new(&rrsets)
+}
+
+fn remove_entry_body_provider(request: &RemoveEntryRequestEvent) -> Rrsets {
+    let mut rrsets: Vec<Rrset> = Vec::new();
+
+    info!("create body for remove-entry request: {}", request);
+
+    rrsets.push(Rrset::new(&conditionally_qualify_key(&request.record_key,
+                                                      &request.zone_name),
+                           map_record_type(&request.record_type).unwrap(),
+                           &Some(Changetype::Delete),
+                           &None,
+                           &Vec::new(),
                            &Vec::new()));
 
     Rrsets::new(&rrsets)

@@ -42,6 +42,7 @@ const SUBCOMMAND_ADD_ZONE: &'static str = "add-zone";
 const SUBCOMMAND_REMOVE_ZONE: &'static str = "remove-zone";
 const SUBCOMMAND_QUERY_ZONE: &'static str = "query-zone";
 const SUBCOMMAND_ADD_ENTRY: &'static str = "add-or-replace-entry";
+const SUBCOMMAND_REMOVE_ENTRY: &'static str = "remove-entry";
 const GROUP_NAMESERVER_OR_MASTER: &'static str = "nameserver-or-master";
 
 
@@ -80,6 +81,10 @@ pub enum CommandParameters {
         record_type: String,
         time_to_live: u32,
     },
+    RemoveEntry {
+        record_key: String,
+        record_type: String,
+    },
 }
 
 #[derive(Hash, Debug, PartialEq, Eq, Clone)]
@@ -88,6 +93,7 @@ pub enum CommandKind {
     RemoveZone,
     QueryZone,
     AddEntry,
+    RemoveEntry,
 }
 
 impl ApplicationConfiguration {
@@ -146,10 +152,22 @@ impl ApplicationConfiguration {
             })
         } else { None };
 
+        let command_remove_entry = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_REMOVE_ENTRY) {
+            Some(Command {
+                kind: CommandKind::RemoveEntry,
+                parameters: CommandParameters::RemoveEntry {
+                    record_key: command.value_of(PARAM_RECORD_KEY).unwrap().to_string(),
+                    record_type: command.value_of(PARAM_RECORD_TYPE).unwrap().to_string(),
+
+                },
+            })
+        } else { None };
+
         match command_add_zone
             .or(command_query_zone)
             .or(command_remove_zone)
-            .or(command_add_entry) {
+            .or(command_add_entry)
+            .or(command_remove_entry) {
             Some(command) => Ok(ApplicationConfiguration {
                 zone_name: matches.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
                 base_uri: matches.value_of(PARAM_BASE_URI).unwrap().to_string(),
@@ -198,6 +216,7 @@ impl Display for CommandKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             CommandKind::AddEntry => write!(f, "AddEntry"),
+            CommandKind::RemoveEntry => write!(f, "RemoveEntry"),
             CommandKind::AddZone => write!(f, "AddZone"),
             CommandKind::QueryZone => write!(f, "QueryZone"),
             CommandKind::RemoveZone => write!(f, "RemoveZone"),
@@ -335,6 +354,21 @@ pub fn parse_command_line() -> ArgMatches {
                 .required(false)
                 .takes_value(true)
                 .validator(|value| is_u32(value))))
+        .subcommand(App::new(SUBCOMMAND_REMOVE_ENTRY)
+            .about("Add entry to PowerDNS zone")
+            .arg(Arg::new(PARAM_RECORD_KEY)
+                .about("Record key")
+                .long(PARAM_RECORD_KEY)
+                .short('k')
+                .required(true)
+                .takes_value(true))
+            .arg(Arg::new(PARAM_RECORD_TYPE)
+                .about("Record type")
+                .long(PARAM_RECORD_TYPE)
+                .short('t')
+                .required(true)
+                .takes_value(true)
+                .validator(|value| is_valid_record_type(value))))
         .get_matches()
 }
 
