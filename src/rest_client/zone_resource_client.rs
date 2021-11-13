@@ -259,7 +259,8 @@ fn add_entry_body_provider(request: &AddEntryRequestEvent) -> Rrsets {
         records.push(Record::new(&record_value, false));
     }
 
-    rrsets.push(Rrset::new(&request.record_key,
+    rrsets.push(Rrset::new(&conditionally_qualify_key(&request.record_key,
+                                                      &request.zone_name),
                            map_record_type(&request.record_type).unwrap(),
                            &Some(Changetype::Replace),
                            &Some(request.time_to_live),
@@ -288,5 +289,13 @@ fn map_record_type(record_type: &String) -> Option<RrsetType> {
         "CNAME" => Some(RrsetType::Cname),
         "AAAA" => Some(RrsetType::Aaaa),
         _ => None,
+    }
+}
+
+fn conditionally_qualify_key(key: &String, zone_name: &String) -> String {
+    if key.contains(zone_name) {
+        canonicalize_name(key)
+    } else {
+        canonicalize_name(&format!("{}.{}", key, zone_name))
     }
 }
