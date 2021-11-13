@@ -62,6 +62,21 @@ pub struct NewZone {
     slave_tsig_key_ids: Option<Vec<String>>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ListZone {
+    id: String,
+    name: String,
+    url: String,
+    kind: ZoneKind,
+    serial: u64,
+    edited_serial: u64,
+    notified_serial: u64,
+    last_check: u64,
+    masters: Vec<String>,
+    dnssec: bool,
+    account: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ZoneKind {
     Native,

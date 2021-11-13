@@ -16,12 +16,13 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 
 use crate::app_config::cmd_line_parser::{Command, CommandKind, CommandParameters};
-use crate::commands::add_zone_command::AddZoneCommand;
-use crate::rest_client::errors::RestClientError;
-use crate::commands::query_zone_command::QueryZoneCommand;
-use crate::commands::remove_zone_command::RemoveZoneCommand;
 use crate::commands::add_entry_command::AddEntryCommand;
+use crate::commands::add_zone_command::AddZoneCommand;
+use crate::commands::list_zones_command::ListZonesCommand;
+use crate::commands::query_zone_command::QueryZoneCommand;
 use crate::commands::remove_entry_command::RemoveEntryCommand;
+use crate::commands::remove_zone_command::RemoveZoneCommand;
+use crate::rest_client::errors::RestClientError;
 
 pub struct CommandHandler {
     executors: HashMap<CommandKind, Box<dyn CommandExecutor>>,
@@ -38,6 +39,7 @@ impl CommandHandler {
 
         executors.insert(CommandKind::AddZone, Box::new(AddZoneCommand::new(&base_uri, &api_key, zone_name)));
         executors.insert(CommandKind::QueryZone, Box::new(QueryZoneCommand::new(&base_uri, &api_key, zone_name)));
+        executors.insert(CommandKind::ListZones, Box::new(ListZonesCommand::new(&base_uri, &api_key, zone_name)));
         executors.insert(CommandKind::RemoveZone, Box::new(RemoveZoneCommand::new(&base_uri, &api_key, zone_name)));
         executors.insert(CommandKind::AddEntry, Box::new(AddEntryCommand::new(&base_uri, &api_key, zone_name)));
         executors.insert(CommandKind::RemoveEntry, Box::new(RemoveEntryCommand::new(&base_uri, &api_key, zone_name)));

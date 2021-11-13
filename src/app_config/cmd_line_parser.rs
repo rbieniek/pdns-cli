@@ -39,6 +39,7 @@ const PARAM_RECORD_TYPE: &'static str = "type";
 const PARAM_TIME_TO_LIVE: &'static str = "time-to-live";
 const SUBCOMMAND_ADD_ZONE: &'static str = "add-zone";
 const SUBCOMMAND_REMOVE_ZONE: &'static str = "remove-zone";
+const SUBCOMMAND_LIST_ZONES: &'static str = "list-zones";
 const SUBCOMMAND_QUERY_ZONE: &'static str = "query-zone";
 const SUBCOMMAND_ADD_ENTRY: &'static str = "add-or-replace-entry";
 const SUBCOMMAND_REMOVE_ENTRY: &'static str = "remove-entry";
@@ -84,6 +85,9 @@ pub enum CommandParameters {
         record_key: String,
         record_type: String,
     },
+    ListZone {
+        output_file: Option<String>,
+    },
 }
 
 #[derive(Hash, Debug, PartialEq, Eq, Clone)]
@@ -93,6 +97,7 @@ pub enum CommandKind {
     QueryZone,
     AddEntry,
     RemoveEntry,
+    ListZones,
 }
 
 impl ApplicationConfiguration {
@@ -121,6 +126,7 @@ impl ApplicationConfiguration {
                 },
             })
         } else { None };
+
         let command_query_zone = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_QUERY_ZONE) {
             Some(Command {
                 kind: CommandKind::QueryZone,
@@ -132,6 +138,7 @@ impl ApplicationConfiguration {
                 },
             })
         } else { None };
+
         let command_remove_zone = if let Some(_) = matches.subcommand_matches(SUBCOMMAND_REMOVE_ZONE) {
             Some(Command {
                 kind: CommandKind::RemoveZone,
@@ -162,11 +169,24 @@ impl ApplicationConfiguration {
             })
         } else { None };
 
+        let command_list_zones = if let Some(command) = matches.subcommand_matches(SUBCOMMAND_LIST_ZONES) {
+            Some(Command {
+                kind: CommandKind::ListZones,
+                parameters: CommandParameters::ListZone {
+                    output_file: match command.value_of(PARAM_OUTPUT_FILE) {
+                        Some(value) => Some(value.to_string()),
+                        None => None,
+                    }
+                },
+            })
+        } else { None };
+
         match command_add_zone
             .or(command_query_zone)
             .or(command_remove_zone)
             .or(command_add_entry)
-            .or(command_remove_entry) {
+            .or(command_remove_entry)
+            .or(command_list_zones) {
             Some(command) => Ok(ApplicationConfiguration {
                 zone_name: matches.value_of(PARAM_ZONE_NAME).unwrap().to_string(),
                 base_uri: matches.value_of(PARAM_BASE_URI).unwrap().to_string(),
@@ -219,6 +239,7 @@ impl Display for CommandKind {
             CommandKind::AddZone => write!(f, "AddZone"),
             CommandKind::QueryZone => write!(f, "QueryZone"),
             CommandKind::RemoveZone => write!(f, "RemoveZone"),
+            CommandKind::ListZones => write!(f, "ListZones"),
         }
     }
 }
@@ -315,7 +336,15 @@ pub fn parse_command_line() -> ArgMatches {
                 .conflicts_with(PARAM_MASTER)
                 .multiple_occurrences(true)))
         .subcommand(App::new(SUBCOMMAND_QUERY_ZONE)
-            .about("Add zone to PowerDNS instance")
+            .about("Query a PowerDNS zone")
+            .arg(Arg::new(PARAM_OUTPUT_FILE)
+                .about("Output file name")
+                .long(PARAM_OUTPUT_FILE)
+                .short('o')
+                .required(false)
+                .takes_value(true)))
+        .subcommand(App::new(SUBCOMMAND_LIST_ZONES)
+            .about("List all PowerDNS zones")
             .arg(Arg::new(PARAM_OUTPUT_FILE)
                 .about("Output file name")
                 .long(PARAM_OUTPUT_FILE)

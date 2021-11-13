@@ -19,7 +19,7 @@ use log::info;
 use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
-use crate::pdns::zone::{Changetype, NewZone, Record, Rrset, Rrsets, RrsetType, Zone};
+use crate::pdns::zone::{Changetype, NewZone, Record, Rrset, Rrsets, RrsetType, Zone, ListZone};
 use crate::rest_client::client_request_builder::ClientRequestBuilder;
 use crate::rest_client::pdns_resource_client::{PnsServerResponse, PowerDnsRestClient};
 
@@ -31,6 +31,8 @@ pub struct ZoneResourceClient {
 pub struct QueryZoneRequestEvent {
     zone_name: String,
 }
+
+pub struct ListZonesRequestEvent {}
 
 pub struct CreateZoneRequestEvent {
     zone_name: String,
@@ -72,9 +74,17 @@ impl ZoneResourceClient {
     pub fn spawn_query_zone(&mut self,
                             request_rx: Receiver<QueryZoneRequestEvent>,
                             response_tx: Sender<PnsServerResponse<QueryZoneRequestEvent, Zone>>) {
-        self.join_handles.push(tokio::spawn(handle_get_request(self.pdns_resource_client.clone(),
-                                                               request_rx,
-                                                               response_tx)));
+        self.join_handles.push(tokio::spawn(handle_query_zone_request(self.pdns_resource_client.clone(),
+                                                                      request_rx,
+                                                                      response_tx)));
+    }
+
+    pub fn spawn_list_zones(&mut self,
+                            request_rx: Receiver<ListZonesRequestEvent>,
+                            response_tx: Sender<PnsServerResponse<ListZonesRequestEvent, Vec<ListZone>>>) {
+        self.join_handles.push(tokio::spawn(handle_list_zones_request(self.pdns_resource_client.clone(),
+                                                                     request_rx,
+                                                                     response_tx)));
     }
 
     pub fn spawn_create_zone(&mut self,
@@ -102,11 +112,11 @@ impl ZoneResourceClient {
     }
 
     pub fn spawn_remove_entry(&mut self,
-                           request_rx: Receiver<RemoveEntryRequestEvent>,
-                           response_tx: Sender<PnsServerResponse<RemoveEntryRequestEvent, ()>>) {
+                              request_rx: Receiver<RemoveEntryRequestEvent>,
+                              response_tx: Sender<PnsServerResponse<RemoveEntryRequestEvent, ()>>) {
         self.join_handles.push(tokio::spawn(handle_remove_entry_request(self.pdns_resource_client.clone(),
-                                                                     request_rx,
-                                                                     response_tx)));
+                                                                        request_rx,
+                                                                        response_tx)));
     }
 }
 
@@ -115,6 +125,12 @@ impl QueryZoneRequestEvent {
         QueryZoneRequestEvent {
             zone_name: zone_name.clone(),
         }
+    }
+}
+
+impl ListZonesRequestEvent {
+    pub fn new() -> ListZonesRequestEvent {
+        ListZonesRequestEvent {}
     }
 }
 
@@ -189,14 +205,24 @@ impl Drop for ZoneResourceClient {
     }
 }
 
-async fn handle_get_request(pdns_resource_client: Arc<PowerDnsRestClient>,
-                            request_rx: Receiver<QueryZoneRequestEvent>,
-                            response_tx: Sender<PnsServerResponse<QueryZoneRequestEvent, Zone>>) {
+async fn handle_query_zone_request(pdns_resource_client: Arc<PowerDnsRestClient>,
+                                   request_rx: Receiver<QueryZoneRequestEvent>,
+                                   response_tx: Sender<PnsServerResponse<QueryZoneRequestEvent, Zone>>) {
     pdns_resource_client
         .handle_get_request::<QueryZoneRequestEvent,
             Zone>(request_rx,
                   response_tx,
                   get_zone_request_path).await
+}
+
+async fn handle_list_zones_request(pdns_resource_client: Arc<PowerDnsRestClient>,
+                                   request_rx: Receiver<ListZonesRequestEvent>,
+                                   response_tx: Sender<PnsServerResponse<ListZonesRequestEvent, Vec<ListZone>>>) {
+    pdns_resource_client
+        .handle_get_request::<ListZonesRequestEvent,
+            Vec<ListZone>>(request_rx,
+                       response_tx,
+                       list_zones_request_path).await
 }
 
 async fn handle_create_zone_request(pdns_resource_client: Arc<PowerDnsRestClient>,
@@ -230,17 +256,21 @@ async fn handle_add_entry_request(pdns_resource_client: Arc<PowerDnsRestClient>,
 }
 
 async fn handle_remove_entry_request(pdns_resource_client: Arc<PowerDnsRestClient>,
-                                  request_rx: Receiver<RemoveEntryRequestEvent>,
-                                  response_tx: Sender<PnsServerResponse<RemoveEntryRequestEvent, ()>>) {
+                                     request_rx: Receiver<RemoveEntryRequestEvent>,
+                                     response_tx: Sender<PnsServerResponse<RemoveEntryRequestEvent, ()>>) {
     pdns_resource_client
         .handle_patch_request::<RemoveEntryRequestEvent, Rrsets>(request_rx,
-                                                              response_tx,
-                                                              remove_entry_request_path,
-                                                              remove_entry_body_provider).await
+                                                                 response_tx,
+                                                                 remove_entry_request_path,
+                                                                 remove_entry_body_provider).await
 }
 
 fn get_zone_request_path(request: &QueryZoneRequestEvent) -> String {
     format!("servers/localhost/zones/{}", &request.zone_name)
+}
+
+fn list_zones_request_path(_request: &ListZonesRequestEvent) -> String {
+    format!("servers/localhost/zones")
 }
 
 fn create_zone_request_path(_request: &CreateZoneRequestEvent) -> String {
