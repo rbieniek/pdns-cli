@@ -25,6 +25,7 @@ pub struct PowerDnsRestClient {
     request_builder: ClientRequestBuilder,
 }
 
+#[allow(dead_code)]
 pub struct PnsServerResponse<I, O> where O: DeserializeOwned {
     request: I,
     response: Result<O, RestClientError>,
@@ -215,6 +216,7 @@ impl<I, O> PnsServerResponse<I, O> where O: DeserializeOwned {
         }
     }
 
+    #[allow(dead_code)]
     pub fn request(&self) -> &I {
         &self.request
     }

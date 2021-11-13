@@ -21,6 +21,7 @@ pub struct Error {
     errors: Option<Vec<String>>,
 }
 
+#[allow(dead_code)]
 impl Error {
     pub fn error(&self) -> String {
         self.error.clone()

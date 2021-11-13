@@ -38,6 +38,7 @@ pub enum DaemonType {
     Authoritative,
 }
 
+#[allow(dead_code)]
 impl Server {
     pub fn type_id(&self) -> StructType {
         self.type_id.clone()

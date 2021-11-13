@@ -128,6 +128,7 @@ pub struct Comment {
 
 impl PowerDnsPayload for Zone {}
 
+#[allow(dead_code)]
 impl Zone {
     pub fn rrsets(&self) -> Vec<Rrset> {
         self.rrsets.clone()
@@ -175,6 +176,7 @@ impl NewZone {
     }
 }
 
+#[allow(dead_code)]
 impl Rrset {
     pub fn new(name: &String,
                type_id: RrsetType,
@@ -209,6 +211,7 @@ impl Rrsets {
     }
 }
 
+#[allow(dead_code)]
 impl Comment {
     pub fn new(content: &String, account: &String) -> Comment {
         let stamp = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {

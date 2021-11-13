@@ -24,7 +24,6 @@ use std::fmt::{Display, Formatter};
 const PARAM_BASE_URI: &'static str = "base-uri";
 const PARAM_API_KEY: &'static str = "api-key";
 const PARAM_ZONE_NAME: &'static str = "zone-name";
-const PARAM_IGNORE_EXISTING: &'static str = "ignore-existing";
 const PARAM_VERBOSITY: &'static str = "verbose";
 const PARAM_REFRESH_TIME: &'static str = "refresh-time";
 const PARAM_RETRY_TIME: &'static str = "retry-time";
